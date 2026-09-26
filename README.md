@@ -144,8 +144,25 @@ sudo systemctl restart turbine-coal-simulator
 | `SYNCHRONISING` | AVR on auto, breaker closed | 30 s |
 | `LOADING` | 5 % initial load soak, then ramp with load runback | operator-managed |
 
-Typical cold start-up to synchronisation: **≈ 5.5 hours** of simulated time
-(≈ 35 s of wall-clock at 600×).
+Measured on this build (automatic sequence, 600× time acceleration):
+
+| Milestone | Simulated time |
+|---|---|
+| Pre-start complete | 5 min |
+| Purge / light-off | 12 min |
+| Pressure raising complete (8 MPa, 538 °C) | 200 min |
+| Turbine rolled to 3 000 rpm | 265 min |
+| Synchronised, initial load | 285 min |
+| Automatic loading complete (≈ 15 % load) | 312 min |
+
+The operator then completes the loading with the load setpoint and ramp rate
+(6 MW/min is a comfortable figure); the unit settles at **≈ 500 MW gross /
+450 MW net** with the present calibration. Loading beyond that is a genuine
+boiler-turbine balancing exercise — the drum pressure runs up against the
+safety valves and the coordinated controller backs the firing off, which is
+exactly the kind of operating problem the simulator exists to teach.
+Time acceleration up to 600× keeps the integration stable (sub-stepped at
+0.5 s of simulated time).
 
 ---
 
@@ -225,6 +242,11 @@ Served only at **`/admin`**. It is *not* linked from the simulator, is excluded 
   `tools/tune.js` against the plant heat balance. At the MCR design point the model
   reproduces: main steam 538 °C, hot reheat 538 °C, furnace exit 1 250 °C, stack
   ≈ 165 °C, hot air ≈ 330 °C, boiler efficiency ≈ 86–89 %.
+  Known limitations on the current build: the hot reheat temperature settles low
+  (≈ 400 °C) at high load because the reheater gas-bypass characteristic is
+  coarse, and the achieved gross heat rate (≈ 13 000 kJ/kWh) is above the design
+  figure because the cycle runs at a higher throttle pressure and poorer vacuum
+  than the design point.
 * **Rotor dynamics** — `J = 38 000 kg·m²` with a velocity-ratio wheel efficiency that
   keeps the developed torque finite at standstill, so run-up from the turning gear to
   3 000 rpm is continuous and follows the soak programme.
