@@ -86,7 +86,20 @@ internet access**; it is deliberately *not* a runtime dependency of `package.jso
 
 ## Installation on Ubuntu Server
 
+Tested on **Ubuntu Server 20.04, 22.04, 24.04 and 25.04**.
+
 ```bash
+git clone https://github.com/mikeehendricks/TurbineCoalSimulator.git
+cd TurbineCoalSimulator
+sudo ./install.sh
+```
+
+or, without cloning first (the installer clones the repository itself — run it
+from a directory that is **not** a git checkout):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/mikeehendricks/TurbineCoalSimulator/main/install.sh -o install.sh
+chmod +x install.sh
 sudo ./install.sh
 ```
 
@@ -108,6 +121,18 @@ Environment overrides:
 ```bash
 sudo APP_DIR=/srv/sim APP_USER=sim PORT=9090 ADMIN_PATH=/admin ./install.sh
 ```
+
+**Ports and library names.** The installer resolves every system library to the
+name that actually exists in your release's archive — Ubuntu 24.04/25.04 renamed
+several of them to the `t64` ABI flavour (`libasound2` → `libasound2t64`,
+`libatk1.0-0` → `libatk1.0-0t64`, `libcups2` → `libcups2t64`, …) and apt refuses
+the old virtual names. The headless-browser libraries are optional: they are only
+needed by the Puppeteer screenshot harness `tools/shots.js`, and a failure to
+install them never aborts the installation.
+
+If you choose a port **below 1024** (e.g. `PORT=80`), the service is granted
+`CAP_NET_BIND_SERVICE`, because the unprivileged `simulator` account cannot
+otherwise bind a privileged port. Any other hardening in the unit is unchanged.
 
 Service control:
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # install.sh — one-shot installer for the Twin-Boiler Coal Power Plant Simulator
-#              on Ubuntu Server (20.04 / 22.04 / 24.04).
+#              on Ubuntu Server (20.04 / 22.04 / 24.04 / 25.04).
 #
 #   sudo ./install.sh
 #
@@ -41,15 +41,70 @@ echo "    http port   : $PORT"
 echo "    admin path  : $ADMIN_PATH"
 
 # --------------------------------------------------------------------------
+# Ubuntu 24.04 / 25.04 renamed a number of libraries to the "t64" ABI flavour
+# and left the old names behind as *virtual* packages, which apt refuses to
+# install ("E: Package 'libasound2' has no installation candidate").
+# Resolve each package to the first name that really exists in the archive.
+pick_pkg() {
+  local c
+  for c in "$@"; do
+    if apt-cache show "$c" 2>/dev/null | grep -q '^Package: '; then
+      printf '%s' "$c"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# Each argument is a space-separated group of equivalent candidates.
+resolve_groups() {
+  local grp resolved skipped=()
+  for grp in "$@"; do
+    if resolved="$(pick_pkg $grp)"; then          # word splitting is intended
+      printf '%s\n' "$resolved"
+    else
+      skipped+=("${grp%% *}")
+    fi
+  done
+  if [ "${#skipped[@]}" -gt 0 ]; then
+    printf '\033[1;33m    not in this archive, skipped: %s\033[0m\n' "${skipped[*]}" >&2
+  fi
+}
+
 say "Installing system packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y --no-install-recommends \
-  curl ca-certificates gnupg git rsync build-essential \
-  libnspr4 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
-  libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 \
-  libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
-  fonts-dejavu-core
+
+# Required by the simulator itself.
+CORE_PKGS=(curl ca-certificates gnupg git rsync build-essential fonts-dejavu-core)
+apt-get install -y --no-install-recommends "${CORE_PKGS[@]}"
+
+# Headless-browser runtime libraries. These are only needed by the optional
+# Puppeteer screenshot harness (tools/shots.js) — never by the running plant
+# simulator — so a failure here must not abort the installation.
+BROWSER_GROUPS=(
+  "libnspr4"
+  "libnss3"
+  "libatk1.0-0 libatk1.0-0t64"
+  "libatk-bridge2.0-0 libatk-bridge2.0-0t64"
+  "libcups2 libcups2t64"
+  "libdrm2"
+  "libxkbcommon0"
+  "libxcomposite1"
+  "libxdamage1"
+  "libxfixes3"
+  "libxrandr2"
+  "libgbm1"
+  "libpango-1.0-0"
+  "libcairo2"
+  "libasound2 libasound2t64"
+  "libatspi2.0-0 libatspi2.0-0t64"
+)
+mapfile -t BROWSER_PKGS < <(resolve_groups "${BROWSER_GROUPS[@]}")
+if [ "${#BROWSER_PKGS[@]}" -gt 0 ]; then
+  apt-get install -y --no-install-recommends "${BROWSER_PKGS[@]}" \
+    || warn "optional headless-browser libraries unavailable (only used by tools/shots.js)"
+fi
 ok "system packages present"
 
 # --------------------------------------------------------------------------
@@ -134,6 +189,24 @@ chmod 0750 "$APP_DIR/data"
 # --------------------------------------------------------------------------
 if [ "$NO_SERVICE" != "1" ]; then
   say "Installing systemd unit"
+
+  if command -v ss >/dev/null 2>&1 \
+     && ss -Hltn 2>/dev/null | awk '{print $4}' | grep -q ":${PORT}$"; then
+    warn "port $PORT is already listening — if that is not a previous copy of this"
+    warn "simulator, stop that service or re-run the installer with PORT=<other>"
+  fi
+
+  # Ports below 1024 are privileged: an unprivileged service account cannot
+  # bind them. Grant just CAP_NET_BIND_SERVICE in that case; it replaces
+  # NoNewPrivileges=yes, which would otherwise strip the capability.
+  if [ "${PORT:-8080}" -ge 1 ] 2>/dev/null && [ "${PORT:-8080}" -lt 1024 ] 2>/dev/null; then
+    CAP_LINES="AmbientCapabilities=CAP_NET_BIND_SERVICE
+CapabilityBoundingSet=CAP_NET_BIND_SERVICE"
+    warn "port $PORT is privileged — the service is granted CAP_NET_BIND_SERVICE"
+  else
+    CAP_LINES="NoNewPrivileges=yes"
+  fi
+
   cat > /etc/systemd/system/turbine-coal-simulator.service <<EOF
 [Unit]
 Description=Twin-Boiler Coal Power Plant Simulator
@@ -155,7 +228,7 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=turbine-coal-simulator
 # hardening
-NoNewPrivileges=yes
+$CAP_LINES
 PrivateTmp=yes
 ProtectSystem=full
 ProtectHome=yes
