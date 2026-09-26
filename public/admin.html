@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<!--
+  Hidden administration console.
+
+  * Not linked anywhere in the simulator UI.
+  * Served only at /admin with no-store + noindex headers.
+  * Registration is ONE TIME ONLY: once an administrator exists the server
+    permanently rejects further registrations.
+  * Shows every current visitor with their public WAN IP and geolocation.
+  * Update status is read from the GitHub repository itself; the "Update Now"
+    button is rendered only when an update is actually available, and the page
+    reloads by itself once the update reports completion.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow, noarchive" />
+<title>Plant Simulator — Administration</title>
+<style>
+  :root{--bg:#070b12;--panel:#0e1620;--line:#1f2d3d;--txt:#c9d6e2;--dim:#7b8b9c;
+    --acc:#38bdf8;--ok:#37d67a;--warn:#f0b429;--bad:#ff5b5b;
+    --mono:ui-monospace,Menlo,Consolas,monospace}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--mono);font-size:13px;
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px}
+  .wrap{width:min(1080px,100%)}
+  h1{font-size:18px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:11px;margin-bottom:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px 16px;margin-bottom:14px}
+  .card h2{margin:0 0 10px;font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:var(--acc)}
+  label{display:block;font-size:11px;color:var(--dim);margin:9px 0 3px}
+  input{width:100%;background:#0a121b;border:1px solid var(--line);color:var(--txt);border-radius:5px;
+    padding:8px 10px;font-family:var(--mono);font-size:13px}
+  button{background:#16222f;border:1px solid var(--line);color:var(--txt);padding:8px 14px;border-radius:5px;
+    cursor:pointer;font-family:var(--mono);font-size:13px;margin-top:12px}
+  button:hover{border-color:var(--acc);color:#fff}
+  button.primary{background:#0b4b6b;border-color:#1d7ea8;color:#eaf7ff}
+  button.danger{background:#5a1414;border-color:#a33;color:#ffdede}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid #16222e;vertical-align:top}
+  th{color:var(--dim);font-weight:400;font-size:10.5px;letter-spacing:.6px;text-transform:uppercase}
+  .pill{display:inline-block;padding:1px 7px;border-radius:9px;font-size:10px;background:#22303f;color:var(--dim)}
+  .pill.live{background:#12402a;color:#9df3c4}
+  .pill.new{background:#123048;color:#bfe6ff}
+  .pill.lan{background:#3a2f12;color:#ffe0a8}
+  .msg{margin-top:11px;font-size:12px;min-height:17px}
+  .msg.err{color:var(--bad)} .msg.ok{color:var(--ok)} .msg.warn{color:var(--warn)}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .row > div{flex:1}
+  pre{background:#060a10;border:1px solid var(--line);border-radius:6px;padding:9px;max-height:230px;
+    overflow:auto;font-size:11px;line-height:1.45;margin:9px 0 0;color:#a8c0d4;white-space:pre-wrap}
+  .hidden{display:none}
+  .kv{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+  .kv b{color:#fff}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px}
+  .dot.g{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .dot.a{background:var(--warn)} .dot.r{background:var(--bad)} .dot.g2{background:#334}
+  .blink{animation:bl 1.1s infinite}
+  @keyframes bl{50%{opacity:.35}}
+  .small{font-size:10.5px;color:var(--dim);line-height:1.5}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>⚙ Simulator administration</h1>
+  <div class="sub">Twin-boiler coal power plant simulator — restricted page</div>
+
+  <!-- ================= login / registration ================= -->
+  <div class="card" id="authCard">
+    <h2 id="authTitle">One-time administrator registration</h2>
+    <div id="regForm">
+      <div class="row">
+        <div><label>Username</label><input id="u" autocomplete="username" placeholder="operator"></div>
+        <div><label>Email (optional)</label><input id="e" autocomplete="email" placeholder="ops@plant.local"></div>
+      </div>
+      <label>Password (min. 8 characters)</label>
+      <input id="p" type="password" autocomplete="new-password" placeholder="••••••••">
+      <button class="primary" id="regBtn">Create administrator</button>
+      <div class="small" style="margin-top:9px">
+        This is the only time registration is offered. Once an administrator exists on this
+        installation the registration endpoint is permanently disabled and this page shows a
+        sign-in form instead.
+      </div>
+    </div>
+    <div id="loginForm" class="hidden">
+      <div class="row">
+        <div><label>Username</label><input id="lu" autocomplete="username"></div>
+        <div><label>Password</label><input id="lp" type="password" autocomplete="current-password"></div>
+      </div>
+      <button class="primary" id="logBtn">Sign in</button>
+    </div>
+    <div class="msg" id="authMsg"></div>
+  </div>
+
+  <!-- ================= console ================= -->
+  <div id="console" class="hidden">
+    <div class="card">
+      <h2>Software updates</h2>
+      <div class="kv" id="updKv"></div>
+      <div id="updMsg" class="msg"></div>
+      <div id="updBtns" style="display:flex;gap:9px;flex-wrap:wrap"></div>
+      <pre id="updLog" class="hidden"></pre>
+    </div>
+
+    <div class="card">
+      <h2>Connected visitors <span id="vCount" style="color:var(--dim)"></span></h2>
+      <div class="small" style="margin-bottom:9px">
+        Every browser session that has opened the simulator. The public WAN address is the
+        source IP as seen by the server; the location is resolved from that address.
+      </div>
+      <div style="overflow-x:auto"><table id="vTable">
+        <thead><tr>
+          <th>Status</th><th>WAN IP</th><th>Location</th><th>Region / city</th>
+          <th>ISP / organisation</th><th>Coordinates</th><th>First seen</th><th>Last seen</th><th>Agent</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table></div>
+      <div class="msg" id="vMsg"></div>
+      <button id="refreshBtn">Refresh now</button>
+    </div>
+
+    <div class="card">
+      <h2>Server</h2>
+      <div class="kv" id="sysKv"></div>
+      <button id="logoutBtn" class="danger">Sign out</button>
+    </div>
+  </div>
+</div>
+<script src="/js/admin.js"></script>
+</body>
+</html>

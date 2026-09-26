@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Twin-Boiler Coal Power Plant — Operator Training Simulator</title>
+<style>
+  :root{
+    --bg:#070b12; --panel:#0e1620; --panel2:#131e2a; --line:#1f2d3d;
+    --txt:#c9d6e2; --dim:#7b8b9c; --acc:#38bdf8; --ok:#37d67a; --warn:#f0b429; --bad:#ff5b5b;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:var(--mono);font-size:13px;overflow:hidden}
+  #app{display:grid;grid-template-rows:auto 1fr;height:100%}
+
+  header{display:flex;gap:14px;align-items:center;padding:8px 14px;
+    background:linear-gradient(180deg,#0f1b28,#0b131d);border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;letter-spacing:.5px;color:#e8f2fb}
+  header h1 small{color:var(--dim);font-weight:400;font-size:11px;margin-left:8px}
+  .kv{display:flex;flex-direction:column;line-height:1.15;min-width:74px}
+  .kv b{font-size:15px;color:#fff;font-weight:600}
+  .kv span{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+  .spacer{flex:1}
+
+  main{display:grid;grid-template-columns:1fr 340px;height:100%;min-height:0}
+  #view{position:relative;min-height:0;background:#04070c}
+  canvas#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* floating overlay on the 3D view */
+  #overlay{position:absolute;left:10px;top:10px;display:flex;flex-direction:column;gap:6px;
+    pointer-events:none;max-width:52%}
+  .card{background:rgba(9,15,22,.82);border:1px solid var(--line);border-radius:6px;
+    padding:7px 9px;backdrop-filter:blur(4px)}
+  .card h3{margin:0 0 5px;font-size:10.5px;letter-spacing:1px;color:var(--acc);
+    text-transform:uppercase;font-weight:600}
+  .row{display:flex;gap:12px}
+  .row .f{display:flex;flex-direction:column;min-width:64px}
+  .row .f b{font-size:13px;color:#fff}
+  .row .f i{font-style:normal;font-size:9.5px;color:var(--dim)}
+
+  #viewbtns{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:4px}
+  #viewbtns button{background:rgba(9,15,22,.85);border:1px solid var(--line);color:var(--txt);
+    padding:5px 9px;border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:11px;text-align:left}
+  #viewbtns button:hover{border-color:var(--acc);color:#fff}
+
+  #btmbar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;align-items:center;
+    padding:7px 10px;background:linear-gradient(0deg,rgba(5,9,14,.95),rgba(5,9,14,0));flex-wrap:wrap}
+  button.btn{background:#16222f;border:1px solid var(--line);color:var(--txt);padding:6px 11px;
+    border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:12px}
+  button.btn:hover{border-color:var(--acc);color:#fff}
+  button.btn.primary{background:#0b4b6b;border-color:#1d7ea8;color:#eaf7ff}
+  button.btn.warn{background:#4a2a10;border-color:#8a5a1e;color:#ffe6c2}
+  button.btn.danger{background:#5a1414;border-color:#a33;color:#ffdede}
+  button.btn:disabled{opacity:.4;cursor:not-allowed}
+  select,input{background:#0d1621;border:1px solid var(--line);color:var(--txt);
+    padding:5px 7px;border-radius:5px;font-family:var(--mono);font-size:12px}
+
+  /* right hand column */
+  #side{border-left:1px solid var(--line);background:var(--panel);display:grid;
+    grid-template-rows:auto 1fr;min-height:0;overflow:hidden}
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:#0b1420;flex-wrap:wrap}
+  .tabs button{flex:1 0 auto;background:none;border:none;border-bottom:2px solid transparent;
+    color:var(--dim);padding:8px 4px;cursor:pointer;font-family:var(--mono);font-size:11px}
+  .tabs button.active{color:#fff;border-bottom-color:var(--acc);background:#101c29}
+  .pane{display:none;overflow:auto;padding:9px}
+  .pane.active{display:block}
+
+  .alist{display:flex;flex-direction:column;gap:4px}
+  .al{display:flex;gap:7px;align-items:flex-start;padding:5px 7px;border-radius:4px;
+    background:#12202c;border-left:3px solid var(--dim);font-size:11.5px}
+  .al.CRITICAL{border-left-color:var(--bad);background:#2a1216}
+  .al.HIGH{border-left-color:var(--warn);background:#241d10}
+  .al.MEDIUM{border-left-color:var(--acc)}
+  .al .t{color:var(--dim);font-size:10px;min-width:52px}
+  .al.ack{opacity:.42}
+  .ev{font-size:11px;padding:2px 0;border-bottom:1px solid #16222e;display:flex;gap:7px}
+  .ev .t{color:var(--dim);min-width:52px}
+  .ev .c{min-width:56px;color:var(--acc)}
+  .ev.TRIP .c{color:var(--bad)} .ev.FAULT .c{color:var(--warn)} .ev.SEQ .c{color:var(--ok)}
+
+  table{width:100%;border-collapse:collapse;font-size:11.5px}
+  td{padding:2px 4px;border-bottom:1px solid #16222e}
+  td.k{color:var(--dim)}
+  td.v{text-align:right;color:#fff}
+  .bad{color:var(--bad)!important}.warn{color:var(--warn)!important}.ok{color:var(--ok)!important}
+
+  .fgroup{margin-bottom:9px}
+  .fgroup > .h{font-size:10px;letter-spacing:1px;color:var(--acc);margin:8px 0 5px;
+    text-transform:uppercase;border-bottom:1px solid var(--line);padding-bottom:3px}
+  .fitem{display:flex;gap:6px;align-items:center;padding:3px 0}
+  .fitem input[type=range]{flex:1;min-width:60px}
+  .fitem .nm{flex:1;font-size:11.5px}
+  .fitem .sv{color:var(--dim);font-size:10px;min-width:34px;text-align:right}
+  .sev{font-size:9px;padding:1px 5px;border-radius:8px;background:#22303f;color:var(--dim)}
+  .sev.critical{background:#59181c;color:#ffc9c9}
+  .sev.high{background:#5a3d10;color:#ffe0a8}
+  .fdesc{font-size:10.5px;color:var(--dim);padding:3px 0 6px;line-height:1.35}
+  .flist{margin:4px 0 0 16px;padding:0;color:var(--dim);font-size:10.5px}
+
+  #procreq{font-size:11.5px;line-height:1.5;color:#bcd}
+  #procreq li{margin-bottom:3px}
+  #phase{font-size:11.5px;color:var(--acc);margin-bottom:5px}
+  #mode{display:inline-block;padding:2px 8px;border-radius:4px;background:#123048;
+    color:#bfe6ff;font-size:11px;letter-spacing:1px}
+  .banner{position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);z-index:5;
+    padding:14px 26px;border-radius:8px;font-size:20px;letter-spacing:2px;display:none;
+    text-align:center;border:2px solid}
+  .banner.show{display:block}
+  .banner.mft{background:#3a0d10;border-color:#ff5b5b;color:#ffdede;animation:blink 1s infinite}
+  .banner.trip{background:#3a2306;border-color:#f0b429;color:#ffe9b8}
+  @keyframes blink{50%{opacity:.45}}
+
+  .chart{width:100%;height:110px;background:#0a121b;border:1px solid var(--line);border-radius:5px;margin-bottom:7px}
+  .lbl{font-size:10px;color:var(--dim);margin:3px 0}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .badge{display:inline-block;width:8px;height:8px;border-radius:50%;background:#334}
+  .badge.on{background:var(--ok);box-shadow:0 0 6px var(--ok)}
+  .badge.off{background:#4a2530}
+  .badge.fault{background:var(--bad);box-shadow:0 0 6px var(--bad)}
+  #conn{font-size:10px;color:var(--dim)}
+  #clock{font-size:11px;color:var(--dim)}
+  .hint{font-size:10.5px;color:var(--dim);line-height:1.4;margin-top:6px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>TWIN-BOILER COAL POWER PLANT <small>2 × 930 t/h · 660 MWe · 50 Hz operator training simulator</small></h1>
+    <div class="spacer"></div>
+    <div class="kv"><b id="hMW">0</b><span>MW gross</span></div>
+    <div class="kv"><b id="hNET">0</b><span>MW net</span></div>
+    <div class="kv"><b id="hRPM">0</b><span>rpm</span></div>
+    <div class="kv"><b id="hP">0.00</b><span>MPa drum</span></div>
+    <div class="kv"><b id="hT">0</b><span>°C MS</span></div>
+    <div class="kv"><b id="hTRH">0</b><span>°C HRH</span></div>
+    <div class="kv"><b id="hVAC">0.0</b><span>kPa vac</span></div>
+    <div class="kv"><b id="hHR">—</b><span>kJ/kWh</span></div>
+    <div class="kv"><b id="clock">--:--</b><span>sim time</span></div>
+    <div class="kv"><span id="conn">connecting…</span></div>
+  </header>
+
+  <main>
+    <div id="view">
+      <canvas id="gl"></canvas>
+
+      <div id="overlay">
+        <div class="card">
+          <h3>Unit status</h3>
+          <div style="display:flex;gap:10px;align-items:center">
+            <span id="mode">COLD</span>
+            <span id="phase" style="flex:1">—</span>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Boiler A / B</h3>
+          <div class="row">
+            <div class="f"><b id="oP">0.00 / 0.00</b><i>MPa drum</i></div>
+            <div class="f"><b id="oL">0 / 0</b><i>mm level</i></div>
+            <div class="f"><b id="oC">0 / 0</b><i>t/h coal</i></div>
+            <div class="f"><b id="oM">0 / 0</b><i>mills</i></div>
+            <div class="f"><b id="oO2">0 / 0</b><i>% O₂</i></div>
+            <div class="f"><b id="oEFF">0 / 0</b><i>% eff</i></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="viewbtns">
+        <button data-view="overview">◆ Overview</button>
+        <button data-view="boilers">▣ Boiler island</button>
+        <button data-view="furnace">🔥 Furnace</button>
+        <button data-view="turbine">⚙ Turbine hall</button>
+        <button data-view="turbineDeck">⚙ Machine deck</button>
+        <button data-view="tower">☁ Cooling tower</button>
+        <button data-view="coal">⬛ Coal handling</button>
+        <button data-view="fgd">♻ FGD / stack</button>
+        <button data-view="topDown">▤ Plan</button>
+        <button id="lblBtn">⌗ Labels</button>
+      </div>
+
+      <div class="banner mft" id="bMft">MASTER FUEL TRIP<br><span style="font-size:12px" id="mftWhy"></span></div>
+      <div class="banner trip" id="bTrip">TURBINE TRIP<br><span style="font-size:12px" id="tripWhy"></span></div>
+
+      <div id="btmbar">
+        <button class="btn primary" id="btnStart">▶ START UNIT</button>
+        <button class="btn warn" id="btnShutdown">■ SHUT DOWN</button>
+        <button class="btn danger" id="btnTrip">⚡ TRIP TURBINE</button>
+        <button class="btn danger" id="btnMft">✖ MASTER FUEL TRIP</button>
+        <button class="btn" id="btnReset">↺ RESET MFT</button>
+        <span style="color:var(--dim)">|</span>
+        <label style="font-size:11px;color:var(--dim)">Load setpoint
+          <input id="loadSp" type="number" min="0" max="660" step="10" value="660" style="width:64px">
+          MW <button class="btn" id="btnLoad">set</button></label>
+        <label style="font-size:11px;color:var(--dim)">Ramp
+          <input id="ramp" type="number" min="0.5" max="40" step="0.5" value="4" style="width:52px">
+          MW/min <button class="btn" id="btnRamp">set</button></label>
+        <span style="color:var(--dim)">|</span>
+        <label style="font-size:11px;color:var(--dim)">Time
+          <select id="speed">
+            <option value="1">1× real time</option>
+            <option value="10">10×</option>
+            <option value="30">30×</option>
+            <option value="60" selected>60×</option>
+            <option value="120">120×</option>
+            <option value="300">300×</option>
+            <option value="600">600×</option>
+          </select></label>
+        <label style="font-size:11px;color:var(--dim)">Ambient
+          <input id="amb" type="number" min="5" max="45" step="1" value="30" style="width:48px">
+          <button class="btn" id="btnAmb">set</button></label>
+      </div>
+    </div>
+
+    <div id="side">
+      <div class="tabs">
+        <button data-pane="alarms" class="active">Alarms <span id="alCount">0</span></button>
+        <button data-pane="plant">Plant</button>
+        <button data-pane="boiler">Boilers</button>
+        <button data-pane="turb">Turbine</button>
+        <button data-pane="bop">BOP</button>
+        <button data-pane="faults">Faults</button>
+        <button data-pane="proc">Procedure</button>
+        <button data-pane="events">Log</button>
+      </div>
+
+      <div class="pane active" id="p-alarms">
+        <div style="display:flex;gap:6px;margin-bottom:7px">
+          <button class="btn" id="ackAll">Acknowledge all</button>
+        </div>
+        <div class="alist" id="alarms"></div>
+      </div>
+
+      <div class="pane" id="p-plant">
+        <div class="fgroup"><div class="h">Station</div><table id="t-plant"></table></div>
+        <div class="lbl">Gross output</div><canvas class="chart" id="c-mw"></canvas>
+        <div class="lbl">Drum pressure / MS temperature</div><canvas class="chart" id="c-pt"></canvas>
+        <div class="lbl">Condenser vacuum</div><canvas class="chart" id="c-vac"></canvas>
+        <div class="lbl">Coal fired (t/h)</div><canvas class="chart" id="c-coal"></canvas>
+      </div>
+
+      <div class="pane" id="p-boiler">
+        <div class="tabs" style="margin:-9px -9px 8px">
+          <button data-boiler="0" class="bTab active">Boiler A</button>
+          <button data-boiler="1" class="bTab">Boiler B</button>
+        </div>
+        <table id="t-boiler"></table>
+        <div class="fgroup" style="margin-top:10px"><div class="h">Mills <span id="millLamps"></span></div>
+          <table id="t-mills"></table></div>
+        <div class="fgroup"><div class="h">Air &amp; gas</div><table id="t-gas"></table></div>
+        <div class="fgroup"><div class="h">Emissions</div><table id="t-emis"></table></div>
+      </div>
+
+      <div class="pane" id="p-turb">
+        <div class="fgroup"><div class="h">Turbine</div><table id="t-turb"></table></div>
+        <div class="fgroup"><div class="h">Generator</div><table id="t-gen"></table></div>
+        <div class="fgroup"><div class="h">Condenser / circulating water</div><table id="t-cond"></table></div>
+        <div class="fgroup"><div class="h">Supervisory</div><table id="t-sup"></table></div>
+      </div>
+
+      <div class="pane" id="p-bop">
+        <div class="fgroup"><div class="h">Feedwater</div><table id="t-fw"></table></div>
+        <div class="fgroup"><div class="h">Coal / ash / FGD</div><table id="t-coal"></table></div>
+        <div class="fgroup"><div class="h">Auxiliaries</div><table id="t-aux"></table></div>
+        <div class="fgroup"><div class="h">Auxiliary plant start / stop</div>
+          <div id="auxbtns" style="display:flex;flex-wrap:wrap;gap:5px"></div>
+        </div>
+      </div>
+
+      <div class="pane" id="p-faults">
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button class="btn" id="clearAllFaults">Clear all faults</button>
+        </div>
+        <input id="fsearch" placeholder="filter faults…" style="width:100%;margin-bottom:8px">
+        <div id="faults"></div>
+      </div>
+
+      <div class="pane" id="p-proc">
+        <div id="phase2" style="color:var(--acc);margin-bottom:8px"></div>
+        <ul id="procreq"></ul>
+        <div class="hint">The start-up and shut-down sequencer drives the unit automatically.
+          Use the load setpoint and ramp rate to complete loading once the unit is synchronised.</div>
+      </div>
+
+      <div class="pane" id="p-events"><div id="events"></div></div>
+    </div>
+  </main>
+</div>
+<script type="importmap">
+{
+  "imports": {
+    "three": "/vendor/three/three.module.js",
+    "three/addons/": "/vendor/three/addons/"
+  }
+}
+</script>
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
