@@ -392,7 +392,7 @@ class Boiler {
 
     // -- reheater --
     const cGasRh = mGasKg * S.cpFlue(Math.max(200, 0.5 * (tGas + 600)));
-    const rhBypass = clamp(this.rhGasDamper / 100, 0.15, 1.0);
+    const rhBypass = clamp(this.rhGasDamper / 100, 0.04, 1.0);
     const effRh = cGasRh > 0.01 ? 1 - Math.exp(-(uaRh * rhBypass) / cGasRh) : 0;
     const tSteamMeanRh = 0.5 * (this.rhInTemp + this.rhOutTemp);
     this.qRh = Math.max(0, effRh * cGasRh * (tGas - tSteamMeanRh));
@@ -478,9 +478,16 @@ class Boiler {
     const ventAvail = Math.min(ventCap, Math.max(0, 0.92 * this.msFlow));
     this.ventFlow = lag(this.ventFlow, clamp(this.ventDemand, 0, ventAvail), 5, dt);
 
+    // Drum safety valves: they pop at the set pressure and re-seat on blowdown.
+    const svSet = LIMITS.drum.safetyValveSet - 0.25;      // first valve pops a little early
+    const svWant = this.drumPressure > svSet
+      ? clamp((this.drumPressure - svSet) * 2600, 0, 1500) : 0;
+    this.safetyValveFlow = lag(this.safetyValveFlow || 0, svWant, 0.5, dt);
+    this.safetyValvesLifted = (this.safetyValveFlow || 0) > 1;
+
     // turbine / vent demand taken from the common header
     const mOutTotal = ctx.steamDemand * (this.inService ? 1 : 0) / Math.max(1, ctx.activeBoilers)
-      + this.ventFlow + this.leakFlow + this.blowdown;
+      + this.ventFlow + this.leakFlow + this.blowdown + (this.safetyValveFlow || 0);
 
     // Energy balance on the pressure parts
     const dhf_dP = (S.satAtP(this.drumPressure + 0.05).hf - S.satAtP(Math.max(0.05, this.drumPressure - 0.05)).hf) / 0.1;
@@ -712,7 +719,7 @@ class TurbineGenerator {
     // Iterative solve: HP flow <-> cold reheat pressure <-> IP/LP flows.
     let mms = this.msFlow, mrh = this.rhFlow;
     let pCrh = this.crhPressure;
-    const pCond = clamp(this.condenserVacuum, 2.5, 101.3);
+    const pCond = clamp(this.condenserVacuum, 2.5, 101.3) / 1000;   // kPa -> MPa
     const gv = (this.stopValve / 100) * (this.governorValve / 100);
     const pHeader = Math.max(0.05, ctx.headerPressure);
     // first stage pressure sits just below the header, throttled by the governor
@@ -866,7 +873,7 @@ class TurbineGenerator {
     // no gland seals => air pours in through the shaft-end packings
     if (this.sealSteam < 0.3 && !this.breakerClosed) vacTarget = Math.max(vacTarget, 62);
     this.condenserVacuum = lag(this.condenserVacuum, clamp(vacTarget, 1.5, 101.3), vacTau, dt);
-    this.lpExhPressure = this.condenserVacuum;
+    this.lpExhPressure = this.condenserVacuum / 1000;                 // MPa
     const tCondSat = S.satAtP(this.condenserVacuum / 1000).Tsat;
     // exhaust temperature: saturation + windage heating at low flow
     const loadFrac = clamp(this.condFlow / (DESIGN.steam.mainSteamFlow * 0.70), 0, 1.2);

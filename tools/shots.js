@@ -60,7 +60,24 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     if (i % 10 === 0) console.log(`   ${st.clock} ${st.mode} ${st.mw} MW`);
     if (st.mode === 'ONLINE' && parseFloat(st.mw) > 60) break;
   }
-  await sleep(1500);
+  // operator completes the loading (the automatic sequence hands over at ~15 %)
+  console.log('operator loading to ~300 MW…');
+  await page.evaluate(() => {
+    document.querySelector('#ramp').value = '8';
+    document.querySelector('#btnRamp').click();
+    document.querySelector('#loadSp').value = '300';
+    document.querySelector('#btnLoad').click();
+  });
+  for (let i = 0; i < 90; i++) {
+    await sleep(1000);
+    const st = await page.evaluate(() => ({
+      mode: document.querySelector('#mode').textContent,
+      mw: parseFloat(document.querySelector('#hMW').textContent || '0'),
+    }));
+    if (st.mw > 280) break;
+    if (st.mode === 'TRIPPED') { console.log('   (unit tripped during loading — keeping the loaded screenshots)'); break; }
+  }
+  await sleep(2500);
 
   await shot('02-unit-on-load.png');
 

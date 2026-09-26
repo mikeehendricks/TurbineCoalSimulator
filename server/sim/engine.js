@@ -23,6 +23,7 @@ const ALARMS = [
   { id: 'DRUM_LEVEL_HI', group: 'Boiler', prio: 'HIGH', msg: (s, i) => `Boiler ${tag(i)} drum level HIGH`, test: (s, b) => b.drumPressure > 0.4 && b.drumLevel > LIMITS.drum.levelHighAlarm },
   { id: 'DRUM_LEVEL_LLO', group: 'Boiler', prio: 'CRITICAL', msg: (s, i) => `Boiler ${tag(i)} drum level LOW LOW — MFT`, test: (s, b) => b.drumPressure > 0.4 && b.drumLevel < LIMITS.drum.levelLowTrip },
   { id: 'DRUM_LEVEL_HHI', group: 'Boiler', prio: 'CRITICAL', msg: (s, i) => `Boiler ${tag(i)} drum level HIGH HIGH — MFT`, test: (s, b) => b.drumPressure > 0.4 && b.drumLevel > LIMITS.drum.levelHighTrip },
+  { id: 'SAFETY_VALVE', group: 'Boiler', prio: 'CRITICAL', msg: (s, i) => `Boiler ${tag(i)} drum safety valves LIFTED`, test: (s, b) => !!b.safetyValvesLifted },
   { id: 'DRUM_PRESS_HI', group: 'Boiler', prio: 'CRITICAL', msg: (s, i) => `Boiler ${tag(i)} drum pressure HIGH`, test: (s, b) => b.drumPressure > LIMITS.drum.pressureHighTrip },
   { id: 'FURNACE_DRAFT_HI', group: 'Boiler', prio: 'HIGH', msg: (s, i) => `Boiler ${tag(i)} furnace draft HIGH`, test: (s, b) => b.qFuel > 2 && b.draft > LIMITS.furnace.draftHighAlarm },
   { id: 'FURNACE_DRAFT_LO', group: 'Boiler', prio: 'HIGH', msg: (s, i) => `Boiler ${tag(i)} furnace draft LOW`, test: (s, b) => b.qFuel > 2 && b.draft < LIMITS.furnace.draftLowAlarm },
@@ -191,6 +192,7 @@ class Plant {
     this.startupPressureTarget = 8.0;
     this.masterFuel = 0;
     this.lastFuelCmd = null;
+    this.boilerFlowCmd = null;
     this.loadHold = null;
     this.ventDemand = 0;
     this.totalCoalBurned = 0;
@@ -200,7 +202,7 @@ class Plant {
     this.starts = 0;
 
     this.masterPressCtrl = new PID(20.0, 0.55, 0.0, 0, 560);
-    this.boilerFollowCtrl = new PID(8.0, 0.10, 0.0, -120, 300, 90);
+    this.boilerFollowCtrl = new PID(90.0, 2.0, 0.0, -480, 300, 150);
     this.presSeq = 0;
     this.ventCtrl = new PID(0.60, 0.03, 0.0, 0, 600);
     this.runupIndex = 0;
@@ -235,6 +237,7 @@ class Plant {
     this.soakTimer = 0;
     this.masterFuel = 0;
     this.lastFuelCmd = null;
+    this.boilerFlowCmd = null;
     this.loadHold = null;
     this.ventDemand = 0;
     this.time = 0;
@@ -453,30 +456,33 @@ class Plant {
 
     // ---- MFT interlocks -------------------------------------------------
     if (!this.mft.latched) {
-      const reasons = [];
+      const insvc = b.filter(x => x.inService);
+      const fire = (id, cond, delay, reason) => {
+        if (!cond) { this.protTimers[id] = 0; return; }
+        this.protTimers[id] = (this.protTimers[id] || 0) + dt;
+        if (this.protTimers[id] >= delay) this.tripBoiler(reason, [reason]);
+      };
       for (let i = 0; i < b.length; i++) {
         const x = b[i];
         if (!x.inService) continue;
-        // Low-load block: below the pressure at which the level control is
-        // proven stable the drum-level trips are blocked (standard practice —
-        // swell and shrink make the indicated level unreliable down there).
-        const lvlTripsArmed = x.drumPressure > 6.0;
-        if (lvlTripsArmed && x.drumLevel < LIMITS.drum.levelLowTrip) reasons.push(`Blr ${tag(i)} drum level LLL`);
-        if (lvlTripsArmed && x.drumLevel > LIMITS.drum.levelHighTrip) reasons.push(`Blr ${tag(i)} drum level HHH`);
-        if (x.drumPressure > LIMITS.drum.pressureHighTrip) reasons.push(`Blr ${tag(i)} drum pressure HH`);
-        if (x.draft > LIMITS.furnace.draftHighTrip) reasons.push(`Blr ${tag(i)} furnace pressure HH`);
-        if (x.draft < LIMITS.furnace.draftLowTrip) reasons.push(`Blr ${tag(i)} furnace pressure LL`);
+        // the drum level trips need a longer pick-up delay: swell and shrink
+        // on a large drum can take the indicated level well past the trip for
+        // several seconds during a load change
+        fire(`lvl${i}L`, x.drumPressure > 0.4 && x.drumLevel < LIMITS.drum.levelLowTrip, 12,
+          `Blr ${tag(i)} drum level LLL`);
+        fire(`lvl${i}H`, x.drumPressure > 0.4 && x.drumLevel > LIMITS.drum.levelHighTrip, 12,
+          `Blr ${tag(i)} drum level HHH`);
+        fire(`prs${i}`, x.drumPressure > LIMITS.drum.pressureHighTrip, 8,
+          `Blr ${tag(i)} drum pressure HH`);
+        fire(`dft${i}H`, x.qFuel > 2 && x.draft > LIMITS.furnace.draftHighTrip, 3,
+          `Blr ${tag(i)} furnace pressure HH`);
+        fire(`dft${i}L`, x.qFuel > 2 && x.draft < LIMITS.furnace.draftLowTrip, 3,
+          `Blr ${tag(i)} furnace pressure LL`);
       }
-      const insvc = b.filter(x => x.inService);
       const allFlameLost = insvc.length > 0 && insvc.every(x => x.lossOfIgnition);
-      if (allFlameLost && insvc.some(x => x.qFuel > 2)) reasons.push('Loss of all flame');
-      if (insvc.length && insvc.every(x => !x.idRunning) && anyFired) reasons.push('All ID fans tripped');
-      if (insvc.length && insvc.every(x => !x.fdRunning) && anyFired) reasons.push('All FD fans tripped');
-      const id = 'MFT';
-      if (reasons.length) {
-        this.protTimers[id] = (this.protTimers[id] || 0) + dt;
-        if (this.protTimers[id] >= 2) { this.protTimers[id] = 0; this.tripBoiler(reasons[0], reasons); }
-      } else this.protTimers[id] = 0;
+      fire('flame', allFlameLost && insvc.some(x => x.qFuel > 2), 2, 'Loss of all flame');
+      fire('idfan', insvc.length && insvc.every(x => !x.idRunning) && anyFired, 1, 'All ID fans tripped');
+      fire('fdfan', insvc.length && insvc.every(x => !x.fdRunning) && anyFired, 1, 'All FD fans tripped');
     }
 
     // ---- turbine trip interlocks ---------------------------------------
@@ -563,14 +569,16 @@ class Plant {
           // Start-up vent: this is how the operator drives the steam
           // temperature up to meet the turbine metal temperature without
           // over-heating the superheater.
+          // no venting once the boiler is nearly at rolling pressure
           const vNeed = clamp(this.ventCtrl.step(-x.msTemp, -500, dt), 0, Math.min(700, 50 + 130 * P));
-          x.ventDemand = vNeed * clamp(1 - (this.pressureSetpoint - P) / 0.4, 0, 1);
+          const nearRoll = clamp((P - (this.startupPressureTarget - 0.6)) / 0.5, 0, 1);
+          x.ventDemand = vNeed * clamp(1 - (this.pressureSetpoint - P) / 0.4, 0, 1) * (1 - nearRoll);
           x.rhGasDamper = 55;
         }
         const tSat = S.satAtP(P).Tsat;
         this.phaseNote = `Pressure raising — ${P.toFixed(2)} MPa / ${tSat.toFixed(0)} C (target ${this.startupPressureTarget} MPa)`;
         const msT = inservice.reduce((a, x) => a + x.msTemp, 0) / Math.max(1, inservice.length);
-        if (P >= this.startupPressureTarget - 0.05 && msT > 415) {
+        if (P >= this.startupPressureTarget - 0.12 && msT > 415) {
           this.mode = 'TURBINE_ROLL'; this.phaseTimer = 0; this.runupIndex = 0; this.soakTimer = 0;
           for (const x of inservice) { x.msLineIsolated = false; x.mainStopValve = 100; }
           this.tg.turningGear = false; this.tg.jackingOil = false;
@@ -586,9 +594,7 @@ class Plant {
       case 'TURBINE_ROLL': {
         const P = inservice.reduce((a, x) => a + x.drumPressure, 0) / Math.max(1, inservice.length);
         // pressure is held while the machine is run up
-        const cmd = (this.startupFuel(P, this.pressureSetpoint, 150, inservice, 555)
-          + (this.tg.msFlow * 0.115) / inservice.length)
-          * clamp(1 - (inservice.reduce((a, b) => Math.max(a, b.msTemp), 0) - 570) / 60, 0.15, 1);
+        const cmd = this.startupFuel(P, this.pressureSetpoint, 60, inservice, 555);
         for (const x of inservice) {
           x.fuelDemand = clamp(cmd, 0, 160);
           x.fdSpeed = clamp(30 + 55 * (x.fuelDemand / 150), 28, 100);
@@ -625,8 +631,7 @@ class Plant {
       /* ------------------------ SYNCHRONISING --------------------------- */
       case 'SYNCHRONISING': {
         const P = inservice.reduce((a, x) => a + x.drumPressure, 0) / Math.max(1, inservice.length);
-        const cmd = this.startupFuel(P, this.pressureSetpoint, 160, inservice, 535)
-          + (this.tg.msFlow * 0.115) / inservice.length;
+        const cmd = this.startupFuel(P, this.pressureSetpoint, 70, inservice, 545);
         for (const x of inservice) {
           x.fuelDemand = clamp(cmd, 0, 160);
           x.fdSpeed = clamp(30 + 55 * (x.fuelDemand / 150), 28, 100);
@@ -692,7 +697,7 @@ class Plant {
       case 'COASTDOWN': {
         const P = inservice.reduce((a, x) => a + x.drumPressure, 0) / Math.max(1, inservice.length);
         this.pressureSetpoint = Math.max(0.6, this.pressureSetpoint - (0.15 / 60) * dt);
-        const cmd = this.startupFuel(P, this.pressureSetpoint, 150, inservice, 540);
+        const cmd = this.startupFuel(P, this.pressureSetpoint, 70, inservice, 545);
         for (const x of inservice) {
           x.fuelDemand = clamp(cmd, 0, 150);
           x.fdSpeed = clamp(30 + 55 * (x.fuelDemand / 150), 28, 100);
@@ -721,7 +726,7 @@ class Plant {
       case 'FIREDOWN': {
         const P = inservice.reduce((a, x) => a + x.drumPressure, 0) / Math.max(1, inservice.length);
         this.pressureSetpoint = Math.max(0.15, this.pressureSetpoint - (0.15 / 60) * dt);
-        const cmd = this.startupFuel(P, this.pressureSetpoint, 150, inservice, 540);
+        const cmd = this.startupFuel(P, this.pressureSetpoint, 70, inservice, 545);
         // The last mill is taken out as the pressure falls away; below about
         // 1.2 MPa there is no longer enough heat to hold a flame.
         const fuelWanted = (P > 1.2 && this.phaseTimer < 7200) ? cmd : 0;
@@ -806,19 +811,21 @@ class Plant {
    * too hot.  That is far more stable than a set of interacting PID loops.
    */
   startupFuel(P, setpoint, cap, inservice, msLimit) {
-    // Furnace-exit gas temperature limit: the platen superheater has no
-    // cooling steam at low flow, so the gas temperature is held down until
-    // there is enough steam passing through to carry the heat away.
-    // Superheater protection is applied on the steam temperature the operator
-    // actually sees (after attemperation): back the firing off as the outlet
+    // Superheater protection: back the firing off as the outlet temperature
     // runs away above the target.
     let guard = 1;
     for (const x of inservice) {
       const shGuard = clamp(1 - (Math.max(x.msTemp, x.tShOut) - msLimit) / 60, 0, 1);
       guard = Math.min(guard, shGuard);
     }
-    const pressGuard = clamp(1 - (P - setpoint) / 0.7, 0, 1);
-    return clamp(cap * Math.min(guard, pressGuard) / inservice.length, 0, cap);
+    // Feed-forward: every tonne of steam that leaves the drum (to the turbine
+    // or through the start-up vent) needs about 0.115 t of coal.
+    const steamOut = this.tg.msFlow + inservice.reduce((a, x) => a + (x.ventFlow || 0), 0);
+    const ff = (steamOut * 0.115) / inservice.length;
+    // Pressure term: a modest proportional response to the ramp error, so the
+    // firing rate never steps.
+    const press = clamp(40 * (setpoint - P) + 4, 0, cap);
+    return clamp((ff + press) * guard, 0, cap);
   }
 
   /** Boiler-follow coordinated control used from synchronisation onwards. */
@@ -827,8 +834,13 @@ class Plant {
     // The HP/LP bypass (start-up vent) keeps the boiler above its minimum
     // stable flow until the turbine can take the steam — without it the
     // superheater has no cooling steam and overheats at low load.
+    // The bypass is opened gradually — slamming it open is what upsets the
+    // drum level straight after synchronisation.
     const minBoilerFlow = DESIGN.steam.mainSteamFlow * 0.25;         // t/h
-    const boilerFlow = Math.max(this.tg.msFlow, minBoilerFlow);
+    const boilerFlowWant = Math.max(this.tg.msFlow, minBoilerFlow);
+    this.boilerFlowCmd = rateLimit(this.boilerFlowCmd == null ? this.tg.msFlow : this.boilerFlowCmd,
+      boilerFlowWant, 0.55, dt);
+    const boilerFlow = Math.max(this.tg.msFlow, this.boilerFlowCmd || 0);
     this.bypassDemand = clamp(boilerFlow - this.tg.msFlow, 0, minBoilerFlow);
     const loadF = clamp(boilerFlow / DESIGN.steam.mainSteamFlow, 0, 1.05);
     // sliding-pressure curve
@@ -837,17 +849,18 @@ class Plant {
     const P = inservice.reduce((a, x) => a + x.drumPressure, 0) / Math.max(1, inservice.length);
     const feedForward = DESIGN.steam.mainSteamFlow * 0.158 * (0.06 + 0.94 * loadF);  // t/h of coal
     const trim = this.boilerFollowCtrl.step(P, this.pressureSetpoint, dt);
+    // hard run-back if the pressure runs away above the sliding-pressure curve
     const totalFuel = clamp(feedForward + trim, 0, 520);
     this.masterFuel = totalFuel;
     // Rate limit the firing rate: pulverised-fuel mills cannot follow a step
     // change, and slamming the fuel about is what wrecks drum-level control.
     const wantPer = totalFuel / Math.max(1, inservice.length);
-    const per = rateLimit(this.lastFuelCmd == null ? wantPer : this.lastFuelCmd, wantPer, 0.55, dt);
+    const per = rateLimit(this.lastFuelCmd == null ? wantPer : this.lastFuelCmd, wantPer, 0.22, dt);
     this.lastFuelCmd = per;
     // the number of mills follows the firing-rate demand, not the load
     // second circulating-water pump comes in as the condenser duty builds
-    if (this.tg.grossMW > 180) this.tg.cwPump2 = true;
-    else if (this.tg.grossMW < 60) this.tg.cwPump2 = false;
+    if (this.tg.grossMW > 80) this.tg.cwPump2 = true;
+    else if (this.tg.grossMW < 40) this.tg.cwPump2 = false;
     const millsWanted = clamp(Math.ceil(per / 34), 1, DESIGN.boiler.mills);
     for (const x of inservice) {
       x.fuelDemand = per;
@@ -859,7 +872,7 @@ class Plant {
       // excess air / O2 trim
       x.excessAir = clamp(0.20 + (3.5 - x.o2) * 0.012, 0.02, 0.55);
       // reheater temperature by gas bypass damper
-      x.rhGasDamper = clamp(50 + (DESIGN.steam.reheatOutletTemp - x.rhOutTemp) * 3.2, 15, 100);
+      x.rhGasDamper = clamp(50 + (DESIGN.steam.reheatOutletTemp - x.rhOutTemp) * 3.2, 4, 100);
     }
     // turbineside: the load controller drives the governor valves
     this.tg.mode = 'load';

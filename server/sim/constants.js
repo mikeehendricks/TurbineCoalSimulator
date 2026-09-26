@@ -62,7 +62,7 @@ const DESIGN = {
     designEfficiency: 0.895,
     excessAir: 0.20,           // 20 % excess air -> ~3.5 % O2 in flue gas
     mills: 4,
-    millRatedCoal: 38,         // t/h per mill
+    millRatedCoal: 44,         // t/h per mill
     burners: 16,
     ignitors: 16,
     aph: { gasIn: 355, gasOut: 135, airIn: 30, airOut: 300 },
