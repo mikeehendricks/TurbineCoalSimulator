@@ -885,7 +885,7 @@ class Plant {
     const simDt = dtReal * this.speedFactor;
     if (simDt <= 0) return;
     // sub-step so that fast time constants stay stable under time acceleration
-    const nSub = clamp(Math.ceil(simDt / 0.5), 1, 90);
+    const nSub = clamp(Math.ceil(simDt / 0.5), 1, 260);
     const dt = simDt / nSub;
 
     for (let k = 0; k < nSub; k++) {

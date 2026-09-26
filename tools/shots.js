@@ -46,6 +46,13 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     return null;
   });
   // The page owns the socket, so drive through its own controls.
+  // make sure the shared plant starts from a clean slate
+  await page.evaluate(() => {
+    const b = Array.from(document.querySelectorAll('.tabs button[data-pane]')).find(x => x.dataset.pane === 'faults');
+    if (b) b.click();
+  });
+  await page.evaluate(() => { const b = document.querySelector('#clearAllFaults'); if (b) b.click(); });
+  await page.evaluate(() => { const b = document.querySelector('#btnReset'); if (b) b.click(); });
   await page.select('#speed', '600');
   await page.click('#btnStart');
 
@@ -74,7 +81,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
       mode: document.querySelector('#mode').textContent,
       mw: parseFloat(document.querySelector('#hMW').textContent || '0'),
     }));
-    if (st.mw > 280) break;
+    if (st.mw > 420) break;
     if (st.mode === 'TRIPPED') { console.log('   (unit tripped during loading — keeping the loaded screenshots)'); break; }
   }
   await sleep(2500);
@@ -125,6 +132,8 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   await page.evaluate(() => document.querySelector('#viewbtns button[data-view="topDown"]').click());
   await sleep(1800);
   await shot('09-plan-view.png');
+
+  if (process.env.SKIP_ADMIN === '1') { await browser.close(); console.log('done →', OUT); return; }
 
   // --- admin console -----------------------------------------------------
   const ap = await browser.newPage();
