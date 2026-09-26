@@ -722,17 +722,23 @@ class Plant {
         const P = inservice.reduce((a, x) => a + x.drumPressure, 0) / Math.max(1, inservice.length);
         this.pressureSetpoint = Math.max(0.15, this.pressureSetpoint - (0.15 / 60) * dt);
         const cmd = this.startupFuel(P, this.pressureSetpoint, 150, inservice, 540);
+        // The last mill is taken out as the pressure falls away; below about
+        // 1.2 MPa there is no longer enough heat to hold a flame.
+        const fuelWanted = (P > 1.2 && this.phaseTimer < 7200) ? cmd : 0;
+        const millsWanted = fuelWanted > 4 ? clamp(Math.ceil(fuelWanted / 34), 1, DESIGN.boiler.mills) : 0;
         for (const x of inservice) {
-          const millsWanted = clamp(Math.ceil(cmd / 34), 0, DESIGN.boiler.mills);
           for (let i = 0; i < x.mills.length; i++) x.mills[i].running = i < millsWanted;
-          x.fuelDemand = millsWanted > 0 ? clamp(cmd / inservice.length, 0, 150) : 0;
-          x.ventDemand = clamp((P - this.pressureSetpoint) * 150, 0, Math.min(600, 40 + 90 * P));
+          x.fuelDemand = millsWanted > 0 ? clamp(fuelWanted / inservice.length, 0, 150) : 0;
           x.oilFlowCmd = 0;
+          x.ventDemand = clamp((P - this.pressureSetpoint) * 150, 0, Math.min(600, 40 + 90 * P));
           x.fdSpeed = millsWanted > 0 ? clamp(30 + 55 * (x.fuelDemand / 150), 28, 100) : 32;
-          x.idSpeedBase = clamp(x.fdSpeed + 4, 30, 100);
+          x.idSpeedBase = clamp(x.fdSpeed + 4, 25, 100);
+          x.rhGasDamper = 50;
         }
-        this.phaseNote = `Boiler fire-down — ${P.toFixed(2)} MPa`;
-        if (P < 0.8 && this.phaseTimer > 60) {
+        this.phaseNote = millsWanted
+          ? `Boiler fire-down — ${P.toFixed(2)} MPa, ${millsWanted} mill(s)`
+          : `Fires out — boiler cooling, ${P.toFixed(2)} MPa`;
+        if ((P < 0.8 || millsWanted === 0) && this.phaseTimer > 60) {
           for (const x of inservice) { x.fuelDemand = 0; x.oilFlowCmd = 0; x.ventDemand = 0; }
           this.mode = 'POST_PURGE'; this.phaseTimer = 0;
           this.log('SEQ', 'Boiler fired down — post purge');
@@ -743,8 +749,11 @@ class Plant {
       /* --------------------------- POST PURGE -------------------------- */
       case 'POST_PURGE': {
         for (const x of inservice) { x.fdSpeed = 32; x.idSpeedBase = 35; }
-        this.phaseNote = `Post purge — ${Math.max(0, 600 - this.phaseTimer).toFixed(0)} s`;
-        if (this.phaseTimer > 600) {
+        const fuelOff = inservice.every(x => x.qFuel < 0.5);
+        this.phaseNote = fuelOff
+          ? `Post purge — ${Math.max(0, 600 - this.phaseTimer).toFixed(0)} s`
+          : 'Waiting for the fires to go out before post purge';
+        if (this.phaseTimer > 600 && fuelOff) {
           for (const x of inservice) { x.fdRunning = false; x.idRunning = false; x.paRunning = false; x.paSpeed = 0; x.fdSpeed = 0; x.idSpeedBase = 0; }
           this.tg.turningGear = false; this.tg.jackingOil = false; this.tg.lubeOilPump = false;
           this.bop.bfp.forEach(p => p.running = false);
