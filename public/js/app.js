@@ -3,6 +3,8 @@
  * alarm/event/fault displays and the trends.
  */
 import { PlantScene } from '/js/scene.js';
+import { Tutorial } from '/js/tutorial.js';
+import { PlantAudio } from '/js/audio.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -14,6 +16,9 @@ let ws = null;
 let boilerTab = 0;
 let history = [];
 let faultCatalog = [];
+let audio = null;
+let tutorial = null;
+let tutOffered = false;
 
 /* ============================ networking ============================ */
 function connect() {
@@ -324,6 +329,21 @@ function render() {
   history = s.meta ? null : history;
   if (scene) scene.bind(s);
   drawCharts(s);
+
+  /* ---- tutorial + sound (driven from the live snapshot) ---- */
+  if (audio) audio.update(s);
+  if (tutorial) {
+    tutorial.update(s);
+    if (!tutOffered && s.meta) {
+      tutOffered = true;
+      let seen = '1';
+      try { seen = localStorage.getItem('tcsim.tutorialSeen') || ''; } catch { /* ignore */ }
+      if (!seen) {
+        try { localStorage.setItem('tcsim.tutorialSeen', '1'); } catch { /* ignore */ }
+        if (s.meta.mode === 'SHUTDOWN_COLD') tutorial.start(0);
+      }
+    }
+  }
 }
 
 function satApprox(P) {
@@ -420,6 +440,55 @@ function chart(cv, data, keys, colors, fixedRange, r1, r2) {
 /* ============================== wiring ============================== */
 function init() {
   scene = new PlantScene($('#gl'));
+
+  /* ---- sound ---- */
+  audio = new PlantAudio();
+  const soundBtn = $('#btnSound');
+  const volEl = $('#vol');
+  const paintSound = () => {
+    soundBtn.textContent = audio.enabled ? '🔊 SOUND ON' : '🔇 SOUND OFF';
+    soundBtn.classList.toggle('on', !!audio.enabled);
+    volEl.value = String(Math.round(audio.volume * 100));
+  };
+  volEl.value = String(Math.round(audio.volume * 100));
+  soundBtn.addEventListener('click', async () => {
+    if (audio.enabled) audio.disable();
+    else {
+      const ok = await audio.enable();
+      if (!ok) { soundBtn.textContent = '🔇 NO AUDIO DEVICE'; return; }
+    }
+    paintSound();
+  });
+  volEl.addEventListener('input', () => audio.setVolume(Number(volEl.value) / 100));
+  paintSound();
+
+  /* ---- guided start-up tutorial ---- */
+  tutorial = new Tutorial({
+    send,
+    cmd,
+    setSpeed: (v) => {
+      const sel = $('#speed');
+      if (sel) sel.value = String(v);
+      send({ type: 'speed', value: v });
+    },
+    setLoad: (mw, ramp) => {
+      $('#loadSp').value = String(mw);
+      $('#ramp').value = String(ramp);
+      cmd('loadSetpoint', mw);
+      cmd('rampRate', ramp);
+    },
+    sfx: (name) => audio && audio.event(name),
+  });
+  $('#btnTutorial').addEventListener('click', () => {
+    tutorial.toggle();
+    $('#btnTutorial').classList.toggle('primary', tutorial.running);
+  });
+  $('#btnTutorial2').addEventListener('click', () => {
+    tutorial.start(0);
+    $$('.tabs button[data-pane]').forEach((x) => x.classList.remove('active'));
+    $$('.tabs button[data-pane]').forEach((x) => { if (x.dataset.pane === 'proc') x.classList.add('active'); });
+  });
+
   $$('.tabs button[data-pane]').forEach(b => b.addEventListener('click', () => {
     $$('.tabs button[data-pane]').forEach(x => x.classList.remove('active'));
     b.classList.add('active');
@@ -459,6 +528,13 @@ function init() {
     if (b.dataset.on === '1') send({ type: 'clearFault', id: b.dataset.fault });
     else send({ type: 'injectFault', id: b.dataset.fault, magnitude: 1 });
   });
+
+  // Exposed for the automated UI tests and for console debugging.
+  window.__tcsim = {
+    get state() { return state; }, get scene() { return scene; },
+    get audio() { return audio; }, get tutorial() { return tutorial; },
+    send, cmd,
+  };
 
   connect();
   setInterval(() => { if (ws && ws.readyState === 1) send({ type: 'ping' }); }, 20000);

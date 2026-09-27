@@ -180,9 +180,14 @@ class Boiler {
     this.fuelDemand = 0;            // t/h commanded
     this.airDemand = 0;             // %
     this.levelCtrl = new PID(2.20, 0.010, 1.0, -300, 300, 70);  // output = t/h bias
-    this.tempCtrl1 = new PID(0.35, 0.020, 0.0, 0, 100);
-    this.tempCtrl2 = new PID(0.35, 0.020, 0.0, 0, 100);
-    this.tempCtrlRh = new PID(0.55, 0.030, 0.0, 0, 100);
+    // Integral authority is capped at 55 % of the spray valve: an
+    // attemperator is an integrating process and an unlimited integral winds
+    // up during a load ramp, leaving the stage-1 valve pinned wide open long
+    // after the superheater has cooled — which held the final main-steam
+    // temperature ~15 K below design for the whole run.
+    this.tempCtrl1 = new PID(0.35, 0.020, 0.0, 0, 100, 55);
+    this.tempCtrl2 = new PID(0.35, 0.020, 0.0, 0, 100, 55);
+    this.tempCtrlRh = new PID(0.55, 0.030, 0.0, 0, 100, 55);
     this.rhTempCtrl = new PID(1.4, 0.03, 4, 0, 100);
     this.draftCtrl = new PID(0.020, 0.0035, 0.0, -45, 45);
     this.o2Ctrl = new PID(3.0, 0.06, 4, -30, 30);
@@ -369,7 +374,13 @@ class Boiler {
 
     // -- attemperator stages (spray comes from the BFP discharge) --
     const hSpray = S.hWater(this.fwPressure, this.fwTemp);
-    const spray1Max = DESIGN.steam.mainSteamFlow * 0.05 / 2;   // t/h per boiler
+    // Capacity follows the design attemperator duty (90 t/h per boiler at
+    // MCR), scaled with the steam flow. Sized off the main-steam flow alone
+    // it was only 46 t/h, which is not enough to hold 538 °C once the
+    // superheater outlet climbs at high firing — the final steam temperature
+    // then sat 10–15 K above design for the whole run.
+    const spray1Max = (LIMITS.steam.superheatAttempMax || 90)
+      * clamp(this.msFlow / (DESIGN.steam.mainSteamFlow / 2), 0.15, 1.2);   // t/h per boiler
     const sprayAvailable = this.fwPressure > this.drumPressure + 1.0 && this.msFlow > 30;
     if (this.tempCtrlAuto && sprayAvailable) {
       // Stage 1 only protects the secondary superheater (it should sit shut in
@@ -485,8 +496,12 @@ class Boiler {
     this.safetyValveFlow = lag(this.safetyValveFlow || 0, svWant, 0.5, dt);
     this.safetyValvesLifted = (this.safetyValveFlow || 0) > 1;
 
-    // turbine / vent demand taken from the common header
-    const mOutTotal = ctx.steamDemand * (this.inService ? 1 : 0) / Math.max(1, ctx.activeBoilers)
+    // Turbine / vent demand taken from the common header. The share each
+    // boiler takes follows its own drum pressure (see engine.js) — that is
+    // what holds the two drums together on one header.
+    const share = (ctx.shares && ctx.shares[this.id] != null)
+      ? ctx.shares[this.id] : 1 / Math.max(1, ctx.activeBoilers || 1);
+    const mOutTotal = ctx.steamDemand * (this.inService ? share : 0)
       + this.ventFlow + this.leakFlow + this.blowdown + (this.safetyValveFlow || 0);
 
     // Energy balance on the pressure parts
@@ -727,7 +742,11 @@ class TurbineGenerator {
     for (let it = 0; it < 4; it++) {
       mrh = Math.max(0, mms) * (1 - EXT_HP);
       const tHrhK = (this.hrhTemp + 273.15);
-      pCrh = clamp(0.35 + 3.55 * (mrh / (St.reheatFlow * 0.877)) * Math.sqrt(tHrhK / 811), 0.12, 6.5);
+      // The cold-reheat pressure is 3.90 MPa at the DESIGN reheat flow (1580 t/h);
+      // the old reference of reheatFlow*0.877 put the design point at a main
+      // steam flow of 1580 t/h instead of 1860 t/h, which held the CRH
+      // ~13 % high and threw away HP work at every load.
+      pCrh = clamp(0.35 + 3.55 * (mrh / St.reheatFlow) * Math.sqrt(tHrhK / 811), 0.12, 6.5);
       const tMsK = Math.max(300, this.msTemp + 273.15);
       const denom = Math.sqrt(Math.max(0.01, St.mainSteamPressure ** 2 - St.reheatInletPressure ** 2));
       const num = Math.sqrt(Math.max(0, pHpIn ** 2 - pCrh ** 2));
@@ -931,8 +950,12 @@ class TurbineGenerator {
     this.eccentricity = lag(this.eccentricity,
       this.speed < 10 && !this.turningGear ? clamp(0.012 + this.rotorBow * 0.09, 0, 0.2) : 0.012 + 0.004 * Math.sin(ctx.time * 0.7), 30, dt);
     this.axialShift = lag(this.axialShift, 0.02 + 0.02 * clamp(this.grossMW / 660, 0, 1) + (this.thrustFault || 0) * 0.9, 20, dt);
+    // Differential expansion is rotor-minus-casing growth: a few millimetres
+    // at full load, 12 mm is the trip. The old 0.045 gain saturated at the
+    // 14 mm clamp on every full-load run, so the "HIGH" alarm (9 mm) was
+    // permanent instead of meaningful.
     this.differentialExpansion = lag(this.differentialExpansion,
-      clamp((this.metalTempHP - 30) * 0.045 - (this.speed / 3000) * 1.4, -3, 14), 200, dt);
+      clamp((this.metalTempHP - 30) * 0.018 - (this.speed / 3000) * 1.4, -3, 14), 200, dt);
     this.casingExpansion = lag(this.casingExpansion, clamp((this.metalTempHP - 30) * 0.075, 0, 40), 250, dt);
 
     // metal temperatures follow the steam
@@ -1057,7 +1080,13 @@ class BalanceOfPlant {
     }
 
     /* ---- condensate / deaerator / heaters ---- */
-    const condDemand = plant.tg.condFlow;
+    // Hotwell level control. The condensate pump used to simply follow the
+    // condenser inflow with a 4 s lag, so every load change left a little
+    // water behind and the hotwell slowly filled until the HIGH level alarm
+    // latched and never cleared. Real plant trims the CEP flow (and opens the
+    // make-up valve when low) to hold the level near the normal band.
+    const hotwellErr = (plant.tg.hotwellLevel - 900) / 900;
+    const condDemand = Math.max(0, plant.tg.condFlow * clamp(1 + hotwellErr * 0.35, 0.55, 1.7));
     this.condensateFlow = lag(this.condensateFlow, condDemand * (this.cep.some(c => c.running) ? 1 : 0), 4, dt);
     for (const c of this.cep) {
       if (c.running) {

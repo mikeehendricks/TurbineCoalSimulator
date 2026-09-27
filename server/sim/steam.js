@@ -83,10 +83,18 @@ const SAT_CACHE = new Map();
 
 /** Interpolate the saturation line at pressure P (MPa). */
 function satAtP(P) {
-  const pk = Math.round(P * 1e5);
+  // Snap the pressure to the cache grid *before* interpolating. The cache key
+  // was quantised while the value was computed at the raw pressure, so a caller
+  // got back whichever nearby point happened to populate the bucket — and the
+  // bounded cache is cleared periodically, so identical runs diverged (by
+  // ~1e-8) and the plant, whose control loops amplify any perturbation over a
+  // long run, finished at very different loads. Snapping the input makes each
+  // property a pure function of its arguments; the grid (1e-5 MPa) is far below
+  // the accuracy of the fitted correlation.
+  const p = Math.round(clamp(P, 0.0005, PMAX) * 1e5) / 1e5;
+  const pk = Math.round(p * 1e5);
   const c = SAT_CACHE.get(pk);
   if (c !== undefined) return c;
-  const p = clamp(P, 0.0005, PMAX);
   // interpolate in ln(P) for accuracy over 4 decades
   const x = Math.log(p);
   let i = 0;
@@ -183,12 +191,17 @@ const MAX_CACHE = 200000;
 
 /** integral of cp dT from Tsat(P) to T  ->  h(P,T) = hg(P) + I */
 function quadH(P, T) {
-  const s = satAtP(P);
-  if (T <= s.Tsat + 1e-6) return 0;
-  const key = Math.round(P * 400) * 100000 + Math.round(T * 5);
+  // Snap to the cache grid as well — see satAtP(). The grid (0.0005 MPa,
+  // 0.01 K ≈ 0.025 kJ/kg) is far finer than the accuracy of the correlation,
+  // so the step cannot be seen as noise by the control loops.
+  const Pq = Math.round(P * 2000) / 2000;
+  const Tq = T <= 0 ? T : Math.round(T * 100) / 100;
+  const s = satAtP(Pq);
+  if (Tq <= s.Tsat + 1e-6) return 0;
+  const key = Math.round(Pq * 2000) * 100000 + Math.round(Tq * 100);
   const hit = QUAD_CACHE.get(key);
   if (hit !== undefined) return hit;
-  const L = T - s.Tsat;
+  const L = Tq - s.Tsat;
   const n = Math.min(160, Math.max(8, Math.ceil(L / 4)));
   const dx = L / n;
   let sum = 0;

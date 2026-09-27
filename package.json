@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node tools/run-tests.js",
+    "test:sim": "node tools/test-sim.js",
+    "test:api": "node tools/test-api.js",
+    "test:ui": "node tools/test-ui.js",
+    "test:security": "node tools/test-security.js"
   },
   "keywords": [],
   "author": "",

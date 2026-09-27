@@ -202,7 +202,11 @@ class Plant {
     this.starts = 0;
 
     this.masterPressCtrl = new PID(20.0, 0.55, 0.0, 0, 560);
-    this.boilerFollowCtrl = new PID(90.0, 2.0, 0.0, -480, 300, 150);
+    // Boiler-follow pressure trim. The feed-forward does the bulk of the work;
+    // this only has to correct the fuel/steam mismatch, so it is deliberately
+    // slow — the boiler is an integrating process with minutes of dead time and
+    // an aggressive pressure loop just chases the drum level around.
+    this.boilerFollowCtrl = new PID(45.0, 0.35, 0.0, -200, 200, 100);
     this.presSeq = 0;
     this.ventCtrl = new PID(0.60, 0.03, 0.0, 0, 600);
     this.runupIndex = 0;
@@ -261,6 +265,7 @@ class Plant {
         if (this.mode === 'SHUTDOWN_COLD' || this.mode === 'POST_PURGE' || this.mode === 'TRIPPED') {
           if (this.mft.latched) { this.log('SEQ', 'Reset the MFT relays before restarting'); break; }
           this.tg.tripped = false;
+          this.normalShutdown = false;
           this.turbineTrip = { latched: false, cause: '', time: 0 };
           this.mft = { latched: false, cause: '', time: 0, reasons: [] };
           this.ackAlarms.clear();
@@ -271,6 +276,7 @@ class Plant {
       case 'shutdown':
         if (['ONLINE', 'LOADING', 'SYNCHRONISING', 'TURBINE_ROLL'].includes(this.mode)) {
           this.mode = 'UNLOADING'; this.phaseTimer = 0;
+          this.normalShutdown = true;
           this.log('SEQ', 'Normal shutdown sequence initiated');
         }
         break;
@@ -418,6 +424,24 @@ class Plant {
     if (this.mode !== 'TRIPPED') { this.mode = 'COASTDOWN'; this.phaseTimer = 0; }
   }
 
+  /**
+   * Planned stop: open the generator breaker and shut the steam valves without
+   * latching the protection system.  A normal shutdown used to call
+   * tripTurbine(), which latched a turbine trip — the unit then sat in TRIPPED
+   * instead of coasting to the turning gear, and the post-trip interlocks
+   * (vacuum, steam temperature) kept firing on a machine that was simply
+   * stopping.  Overspeed and vibration protection stay live.
+   */
+  coastDown(cause) {
+    this.tg.tripped = true;
+    this.tg.breakerClosed = false;
+    this.tg.loadSetpoint = 0;
+    this.tg.mode = 'manual';
+    this.tg.gvManual = 0;
+    this.log('ELEC', `Generator breaker OPEN — ${cause}`);
+    if (this.mode !== 'TRIPPED') { this.mode = 'COASTDOWN'; this.phaseTimer = 0; }
+  }
+
   tripBoiler(cause, reasons = []) {
     if (this.mft.latched) return;
     this.mft = { latched: true, cause, time: this.simTime, reasons };
@@ -487,13 +511,20 @@ class Plant {
 
     // ---- turbine trip interlocks ---------------------------------------
     if (!this.turbineTrip.latched && tg.speed > 200) {
-      prot('vac', tg.condenserVacuum > LIMITS.turbine.vacuumLowTrip, 2, () => this.tripTurbine('Condenser vacuum low'));
+      // A planned shutdown defeats the process interlocks that are a
+      // consequence of stopping (vacuum decaying as the gland steam falls
+      // away, steam temperature drifting as the fires come down) but never the
+      // mechanical ones.
+      const stopping = !!this.normalShutdown;
+      if (!stopping) {
+        prot('vac', tg.condenserVacuum > LIMITS.turbine.vacuumLowTrip, 2, () => this.tripTurbine('Condenser vacuum low'));
+        prot('ax', tg.axialShift > LIMITS.turbine.axialShiftTrip, 3, () => this.tripTurbine('Axial shift high'));
+        prot('mst', tg.grossMW > 30 && tg.msTemp > LIMITS.steam.msTempHighTrip, 30, () => this.tripTurbine('Main steam temperature high'));
+        prot('msl', tg.grossMW > 30 && tg.msTemp < LIMITS.steam.msTempLowTrip, 10, () => this.tripTurbine('Main steam temperature low (water induction)'));
+      }
       prot('os', tg.speed > LIMITS.turbine.overspeedTrip, 0.2, () => this.tripTurbine('Overspeed'));
       prot('vib', tg.vibrations.some(v => v > LIMITS.turbine.vibrationTrip), 3, () => this.tripTurbine('Bearing vibration high'));
-      prot('ax', tg.axialShift > LIMITS.turbine.axialShiftTrip, 3, () => this.tripTurbine('Axial shift high'));
       prot('lop', tg.lubeOilPressure < LIMITS.turbine.lubeOilTrip, 2, () => this.tripTurbine('Lube oil pressure low'));
-      prot('mst', tg.grossMW > 30 && tg.msTemp > LIMITS.steam.msTempHighTrip, 30, () => this.tripTurbine('Main steam temperature high'));
-      prot('msl', tg.grossMW > 30 && tg.msTemp < LIMITS.steam.msTempLowTrip, 10, () => this.tripTurbine('Main steam temperature low (water induction)'));
     }
 
     const inservice = b.filter(x => x.inService);
@@ -686,9 +717,7 @@ class Plant {
         this.runBoilerFollow(dt, inservice);
         this.phaseNote = `Unloading — ${this.tg.grossMW.toFixed(1)} MW`;
         if (this.tg.grossMW < 25 && this.tg.loadSetpoint <= 1) {
-          this.tg.breakerClosed = false;
-          this.tripTurbine('Normal shutdown — generator breaker opened');
-          this.mode = 'COASTDOWN'; this.phaseTimer = 0;
+          this.coastDown('normal shutdown — machine unloaded');
         }
         break;
       }
@@ -841,14 +870,53 @@ class Plant {
     this.boilerFlowCmd = rateLimit(this.boilerFlowCmd == null ? this.tg.msFlow : this.boilerFlowCmd,
       boilerFlowWant, 0.55, dt);
     const boilerFlow = Math.max(this.tg.msFlow, this.boilerFlowCmd || 0);
-    this.bypassDemand = clamp(boilerFlow - this.tg.msFlow, 0, minBoilerFlow);
-    const loadF = clamp(boilerFlow / DESIGN.steam.mainSteamFlow, 0, 1.05);
-    // sliding-pressure curve
-    const pSp = clamp(Math.min(DESIGN.steam.mainSteamPressure, 8.0 + 8.7 * loadF), 7.5, DESIGN.steam.mainSteamPressure);
+    // The minimum-flow bypass can only pass steam the boiler is actually
+    // making. Demanding a fixed 465 t/h when the boiler is generating 80 t/h
+    // simply drains the drum: the pressure collapses, the pressure loop winds
+    // up, the firing rate swings and the superheater spikes past the metal
+    // limit — the unit tripped on "main steam temperature high" the moment
+    // the breaker closed. The bypass therefore takes the surplus over the
+    // turbine demand, and never more than 60 % of what is being generated.
+    const genTotal = inservice.reduce((a, x) => a + Math.max(0, x.msFlow), 0);
+    const surplus = Math.max(0, genTotal - this.tg.msFlow);
+    this.bypassDemand = clamp(Math.min(boilerFlow - this.tg.msFlow, surplus * 0.9), 0, minBoilerFlow);
+    // Coordinated (boiler-follow) control. The feed-forward and the
+    // sliding-pressure schedule are driven by the UNIT DEMAND, never by the
+    // measured main-steam flow: feeding measured flow back into the fuel
+    // demand closes a positive loop (more steam → more fuel → more steam)
+    // that runs away and trips the unit on high drum level above ~250 MW.
+    const demandMW = clamp(Math.max(this.tg.loadSetpoint, this.tg.grossMW),
+      0, DESIGN.generator.ratedMW);
+    const loadF = clamp(demandMW / DESIGN.generator.ratedMW, 0, 1.05);
+    // Sliding-pressure curve. This is the DRUM pressure target: the drum runs
+    // above the HP inlet by the superheater and pipework pressure drop
+    // (~0.9 MPa at MCR), so the curve has to end at drumPressureRated (18.1),
+    // not at the 16.7 MPa turbine inlet design figure.
+    const pFull = DESIGN.steam.drumPressureRated;
+    const pSp = clamp(Math.min(pFull, 8.0 + (pFull - 8.0) * loadF), 7.5, pFull);
     this.pressureSetpoint = lag(this.pressureSetpoint, pSp, 30, dt);
     const P = inservice.reduce((a, x) => a + x.drumPressure, 0) / Math.max(1, inservice.length);
     const feedForward = DESIGN.steam.mainSteamFlow * 0.158 * (0.06 + 0.94 * loadF);  // t/h of coal
-    const trim = this.boilerFollowCtrl.step(P, this.pressureSetpoint, dt);
+    // Hand-over continuity. The start-up sequencer writes the firing rate
+    // straight to the boilers, so seed the rate limiter with what they are
+    // actually doing: without this the first loading tick steps the fuel by
+    // tens of t/h, the superheater outlet spikes past the metal limit and the
+    // turbine trips on "main steam temperature high" the moment the breaker
+    // closes.
+    if (this.lastFuelCmd == null) {
+      this.lastFuelCmd = inservice.reduce((a, x) => a + (x.fuelDemand || 0), 0)
+        / Math.max(1, inservice.length);
+    }
+    const trimBefore = this.boilerFollowCtrl.i;
+    const rawTrim = this.boilerFollowCtrl.step(P, this.pressureSetpoint, dt);
+    // The trim is a correction around the feed-forward, not the main fuel
+    // signal: it is clamped to ±110 t/h of coal and the integral is frozen
+    // while it is clipped (conditional integration on the output limit).
+    // Without this the integral winds up during a load ramp and the boiler
+    // keeps over-firing long after the pressure has caught up, which pins the
+    // drum against the safety valves and dumps a quarter of the steam.
+    const trim = clamp(rawTrim, -110, 110);
+    if (trim !== rawTrim) this.boilerFollowCtrl.i = trimBefore;
     // hard run-back if the pressure runs away above the sliding-pressure curve
     const totalFuel = clamp(feedForward + trim, 0, 520);
     this.masterFuel = totalFuel;
@@ -857,6 +925,9 @@ class Plant {
     const wantPer = totalFuel / Math.max(1, inservice.length);
     const per = rateLimit(this.lastFuelCmd == null ? wantPer : this.lastFuelCmd, wantPer, 0.22, dt);
     this.lastFuelCmd = per;
+    // The firing-rate limiter is a physical constraint of a pulverised-fuel
+    // mill, so nothing further is needed here — the trim clamp above is what
+    // protects the loop from winding up.
     // the number of mills follows the firing-rate demand, not the load
     // second circulating-water pump comes in as the condenser duty builds
     if (this.tg.grossMW > 80) this.tg.cwPump2 = true;
@@ -923,10 +994,26 @@ class Plant {
 
       // steam demand shared between the boilers
       const demand = this.tg.msFlow;
+      // Both boilers discharge into ONE main-steam header, so each boiler
+      // takes the share of the demand that its own drum pressure is pushing
+      // for. Without this cross-coupling the pair is unconstrained: the
+      // pressure with the slightly higher drum has a smaller latent heat,
+      // evaporates more, and runs away (A pinned on its safety valves at
+      // 19 MPa while B sagged to 14 MPa). Real twin-boiler units hold the
+      // two drums within a couple of tenths of a MPa.
+      const pMean = active.reduce((a, x) => a + x.drumPressure, 0) / nb;
+      const shares = {};
+      let shareSum = 0;
+      for (const x of active) {
+        const s = clamp((1 / nb) + (x.drumPressure - pMean) * 0.35, 0.08, 0.92);
+        shares[x.id] = s;
+        shareSum += s;
+      }
+      for (const k of Object.keys(shares)) shares[k] /= Math.max(1e-6, shareSum);
       const ctx = {
         dt, ambient: this.bop.ambient, wetBulb: this.bop.wetBulb,
         steamDemand: demand, activeBoilers: nb, fgdRunning: this.bop.fgdRunning,
-        time: this.time, wetCoal: this.coalWet || 0,
+        time: this.time, wetCoal: this.coalWet || 0, shares,
       };
       for (const b of this.boilers) {
         if (!b.inService) continue;
@@ -969,9 +1056,17 @@ class Plant {
   /** Natural-draft cooling tower: outlet water temperature. */
   coolingTower(dt) {
     const loadF = clamp(this.tg.condFlow / (DESIGN.steam.mainSteamFlow * 0.7), 0, 1.2);
-    const range = 5.0 + 7.5 * loadF;
     const approach = DESIGN.coolingTower.approach * (0.55 + 0.45 * loadF);
-    const basin = this.bop.wetBulb + approach + range;
+    // The basin is the COLD water: wet bulb + approach. The range is the
+    // rise across the condenser (hot return − cold basin), which is set by
+    // the duty and the circulating-water flow in the condenser model —
+    // adding it here as well double-counted ~12 K and gave the tower a
+    // 44 °C cold-water temperature, which pinned the condenser at 17 kPa.
+    // Off-design: the tower only holds its approach while the range stays
+    // near the design range; beyond that the cold water warms with it.
+    const rangeActual = Math.max(0, this.tg.cwOutletTemp - this.tg.cwInletTemp);
+    const excess = Math.max(0, rangeActual - DESIGN.coolingTower.rangeDesign);
+    const basin = this.bop.wetBulb + approach + 0.35 * excess;
     this.bop.towerBasin = lag(this.bop.towerBasin || basin, basin, 300, dt);
     this.bop.towerPlume = clamp((this.bop.towerBasin - this.bop.ambient) * 0.12 * loadF, 0, 1);
     return this.bop.towerBasin;

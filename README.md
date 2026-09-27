@@ -317,3 +317,29 @@ to 600× stays numerically stable (≈ 18 000× real time on one core).
 ## Licence
 
 Provided as-is for operator training and education.
+
+## Testing
+
+Four automated suites ship with the simulator. Run them all and regenerate the
+executive report with:
+
+```bash
+npm test                        # all four suites, then docs/executive-test-report.html
+node tools/run-tests.js --quick  # skip the slow physics suite
+node tools/test-sim.js           # physics & plant behaviour  (~12 min)
+node tools/test-api.js           # HTTP / WebSocket API       (~5 s)
+node tools/test-ui.js            # usability, tutorial, sound (~7 min, needs the server on :8080)
+node tools/test-security.js      # security & vulnerabilities (~3 s)
+node tools/loadtest.js --target=660 --ramp=4    # load-ramp harness
+```
+
+`tools/test-ui.js` uses Puppeteer, which is not a runtime dependency:
+
+```bash
+npm install puppeteer --no-save
+```
+
+The consolidated result — coverage, per-check evidence, defects found and fixed,
+open findings and recommendations — is written to
+**`docs/executive-test-report.html`** (and `docs/EXECUTIVE-TEST-REPORT.md`).
+

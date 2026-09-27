@@ -26,7 +26,9 @@ const { DESIGN } = require('./sim/constants.js');
 
 const ROOT = path.resolve(__dirname, '..');
 const PUBLIC = path.join(ROOT, 'public');
-const DATA = path.join(ROOT, 'data');
+// DATA_DIR lets the test harness run a throw-away instance (one-time admin
+// registration) without touching the real installation's data directory.
+const DATA = path.resolve(process.env.DATA_DIR || path.join(ROOT, 'data'));
 const PKG = require('../package.json');
 
 const PORT = Number(process.env.PORT || 8080);

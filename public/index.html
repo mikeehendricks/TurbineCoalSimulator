@@ -4,6 +4,8 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Twin-Boiler Coal Power Plant — Operator Training Simulator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Crect%20width='32'%20height='32'%20rx='6'%20fill='%230b131d'/%3E%3Cpath%20d='M10%2026c0-7%201.6-13%202.6-16h6.8c1%203%202.6%209%202.6%2016z'%20fill='%231d7ea8'/%3E%3Ccircle%20cx='16'%20cy='6'%20r='2.4'%20fill='%2338bdf8'%20opacity='.85'/%3E%3C/svg%3E">
+<meta name="description" content="Real-time 3D operator training simulator for a 660 MWe twin-boiler coal-fired power station — cold start-up, loading, faults and shutdown.">
 <style>
   :root{
     --bg:#070b12; --panel:#0e1620; --panel2:#131e2a; --line:#1f2d3d;
@@ -122,6 +124,44 @@
   #conn{font-size:10px;color:var(--dim)}
   #clock{font-size:11px;color:var(--dim)}
   .hint{font-size:10.5px;color:var(--dim);line-height:1.4;margin-top:6px}
+
+  /* ---- guided start-up tutorial ---- */
+  .tutor{position:absolute;left:50%;top:44px;transform:translateX(-50%);width:440px;
+    max-width:calc(100% - 24px);background:rgba(9,15,22,.95);border:1px solid #2b4a63;
+    border-radius:8px;padding:10px 12px 9px;box-shadow:0 12px 34px rgba(0,0,0,.6);
+    z-index:6;font-size:11.5px;line-height:1.45}
+  .tutor.fault{border-color:#a33;box-shadow:0 12px 34px rgba(140,0,0,.45)}
+  .tt-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .tt-kicker{font-size:9.5px;letter-spacing:1.6px;color:var(--acc)}
+  .tt-count{margin-left:auto;font-size:10px;color:var(--dim)}
+  .tt-x{background:none;border:none;color:var(--dim);cursor:pointer;font-size:12px;padding:0 2px}
+  .tt-x:hover{color:#fff}
+  .tt-bar{height:4px;background:#16222f;border-radius:3px;overflow:hidden;margin-bottom:8px}
+  .tt-bar i{display:block;height:100%;background:linear-gradient(90deg,#0b4b6b,#38bdf8);
+    transition:width .3s ease}
+  .tt-title{margin:0 0 6px;font-size:13px;color:#eaf7ff}
+  .tt-sec{margin-bottom:6px}
+  .tt-sec b{display:block;font-size:9.5px;letter-spacing:1px;text-transform:uppercase;
+    color:var(--acc);margin-bottom:2px}
+  .tt-sec p{margin:0;color:#bcd0e0}
+  .tt-live p{color:#eaf7ff;background:#0c1620;border:1px solid var(--line);border-radius:5px;
+    padding:5px 7px;font-size:11px}
+  .tt-trip{background:#3a0d10;border:1px solid #a33;color:#ffdede;border-radius:5px;
+    padding:6px 8px;margin-bottom:7px}
+  .tt-foot{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+  .tt-foot .btn{padding:4px 9px;font-size:11px}
+  .tt-sum{width:100%;margin-top:5px}
+  .tt-sum td{padding:2px 4px;border-bottom:1px solid #16222e;font-size:11px}
+  .tt-sum td:last-child{text-align:right;color:#fff}
+  .tut-hl{outline:2px solid var(--acc);outline-offset:2px;border-radius:5px;
+    animation:tutpulse 1.3s ease-in-out infinite}
+  @keyframes tutpulse{0%,100%{box-shadow:0 0 0 rgba(56,189,248,0)}
+    50%{box-shadow:0 0 14px rgba(56,189,248,.85)}}
+
+  /* ---- sound controls ---- */
+  #snd{display:flex;align-items:center;gap:6px}
+  #snd input[type=range]{width:76px;min-width:0}
+  #btnSound.on{background:#0b4b6b;border-color:#1d7ea8;color:#eaf7ff}
 </style>
 </head>
 <body>
@@ -142,8 +182,10 @@
   </header>
 
   <main>
-    <div id="view">
+      <div id="view">
       <canvas id="gl"></canvas>
+
+      <div id="tutor" class="tutor" style="display:none"></div>
 
       <div id="overlay">
         <div class="card">
@@ -188,6 +230,12 @@
         <button class="btn danger" id="btnTrip">⚡ TRIP TURBINE</button>
         <button class="btn danger" id="btnMft">✖ MASTER FUEL TRIP</button>
         <button class="btn" id="btnReset">↺ RESET MFT</button>
+        <span style="color:var(--dim)">|</span>
+        <button class="btn" id="btnTutorial">🎓 TUTORIAL</button>
+        <span id="snd" title="Plant sound is synthesised live from the model — no audio files">
+          <button class="btn" id="btnSound">🔇 SOUND OFF</button>
+          <input id="vol" type="range" min="0" max="100" value="70" aria-label="Sound volume">
+        </span>
         <span style="color:var(--dim)">|</span>
         <label style="font-size:11px;color:var(--dim)">Load setpoint
           <input id="loadSp" type="number" min="0" max="660" step="10" value="660" style="width:64px">
@@ -276,6 +324,8 @@
       </div>
 
       <div class="pane" id="p-proc">
+        <button class="btn primary" id="btnTutorial2" style="margin-bottom:9px;width:100%">
+          🎓 Start the guided start-up tutorial</button>
         <div id="phase2" style="color:var(--acc);margin-bottom:8px"></div>
         <ul id="procreq"></ul>
         <div class="hint">The start-up and shut-down sequencer drives the unit automatically.
