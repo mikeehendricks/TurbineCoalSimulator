@@ -235,6 +235,10 @@
         <button class="btn danger" id="btnTrip">⚡ TRIP TURBINE</button>
         <button class="btn danger" id="btnMft">✖ MASTER FUEL TRIP</button>
         <button class="btn" id="btnReset">↺ RESET MFT</button>
+        <!-- min-width keeps the button the same size when it arms, so the
+             confirming click cannot miss because the bar reflowed -->
+        <button class="btn" id="btnResetPlant" style="min-width:148px;text-align:center"
+                title="Return the simulator to a cold, stopped unit — clears faults, trips, load, the event journal and the plant clock">⟲ RESET PLANT</button>
         <span style="color:var(--dim)">|</span>
         <button class="btn" id="btnAuto" title="Start the unit, run it up and load it hands-off">🤖 AUTOPILOT OFF</button>
         <span id="autoState" style="font-size:10.5px;color:var(--dim);min-width:190px"></span>

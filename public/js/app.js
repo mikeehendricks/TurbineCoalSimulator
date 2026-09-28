@@ -504,6 +504,27 @@ function init() {
   paintAuto();
   autopilot.paint();
 
+  /* ---- reset plant: two clicks, because it discards the whole run ---- */
+  const resetBtn = $('#btnResetPlant');
+  let resetArmedAt = 0;
+  const paintReset = () => {
+    resetBtn.textContent = resetArmedAt ? '⟲ CONFIRM RESET' : '⟲ RESET PLANT';
+    resetBtn.classList.toggle('warn', !!resetArmedAt);
+  };
+  resetBtn.addEventListener('click', () => {
+    if (!resetArmedAt) {
+      resetArmedAt = Date.now();
+      paintReset();
+      setTimeout(() => { resetArmedAt = 0; paintReset(); }, 10000);   // 10 s to confirm
+      return;
+    }
+    resetArmedAt = 0;
+    paintReset();
+    if (autopilot && autopilot.active) { autopilot.disable('disengaged — plant reset'); paintAuto(); }
+    cmd('resetPlant');
+  });
+  paintReset();
+
   /* ---- build stamp, bottom right ---- */
   fetch('/api/design').then((r) => r.json()).then((d) => {
     const v = d && d.version ? d.version : {};

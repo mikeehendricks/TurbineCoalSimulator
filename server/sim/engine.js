@@ -222,6 +222,14 @@ class Plant {
 
   /* ------------------------------------------------------------- */
   reset(hard = false) {
+    // Everything the operator thinks of as "the run" goes back to zero: the
+    // plant clock, the event journal and the trend history, as well as the unit
+    // itself. Without the clock reset a cold unit kept an elapsed time from the
+    // previous run, which put every soak timer and timestamp out of step.
+    this.simTime = 0;
+    this.events.length = 0;
+    this.history.length = 0;
+    this.histTimer = 0;
     for (const b of this.boilers) b.reset();
     this.tg.reset();
     this.bop.reset();
@@ -293,6 +301,13 @@ class Plant {
           this.ackAlarms.clear();
           this.log('SEQ', 'MFT and turbine trip relays reset');
         }
+        break;
+      case 'resetPlant':
+        // Full return to the cold, stopped state: the whole point is that it
+        // discards everything — faults, trips, load, elapsed time — so it is
+        // deliberately not reachable from the sequencer, only from an explicit
+        // operator action.
+        this.reset();
         break;
       case 'loadSetpoint':
         this.targetLoad = clamp(Number(value) || 0, 0, DESIGN.generator.ratedMW);

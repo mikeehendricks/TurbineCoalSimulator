@@ -517,6 +517,55 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     return { detail: `reachable at ${ADMIN}, registrationOpen=${st.res.registrationOpen}` };
   });
 
+  await s.test('the RESET PLANT button returns the simulator to a cold unit', async () => {
+    await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
+    await wait(3500);
+    // Put the unit on load with a fault in, so the reset has something to discard.
+    await page.evaluate(async () => {
+      const post = (u, o) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) });
+      await post('/api/command', { cmd: 'speedFactor', value: 600 });
+      await post('/api/command', { cmd: 'start', value: true });
+      await post('/api/command', { cmd: 'loadSetpoint', value: 300 });
+      await post('/api/command', { cmd: 'rampRate', value: 6 });
+    });
+    for (let i = 0; i < 30; i++) {
+      await wait(4000);
+      const mw = await page.evaluate(() => window.__tcsim.state.plant.grossMW || 0);
+      if (mw > 150) break;
+    }
+    await page.evaluate(() => fetch('/api/fault/inject', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: 'TUBE_LEAK', magnitude: 1, boiler: 0 }),
+    }));
+    await wait(1200);
+    const before = await page.evaluate(() => ({
+      mw: +(window.__tcsim.state.plant.grossMW || 0).toFixed(0),
+      mode: window.__tcsim.state.meta.mode,
+      events: (window.__tcsim.state.events || []).length,
+    }));
+
+    // First click only arms it — a destructive reset must not be one click.
+    await page.click('#btnResetPlant');
+    await wait(500);
+    const armed = (await page.$eval('#btnResetPlant', (e) => e.textContent)).trim();
+    const armedMode = await page.evaluate(() => window.__tcsim.state.meta.mode);
+    s.assert(/CONFIRM/i.test(armed), `first click did not arm the button — label is "${armed}"`);
+    s.assert(armedMode === before.mode, `the arming click changed the plant (${before.mode} → ${armedMode})`);
+
+    await page.click('#btnResetPlant');
+    await wait(2500);
+    const after = await page.evaluate(() => ({
+      mode: window.__tcsim.state.meta.mode,
+      mw: +(window.__tcsim.state.plant.grossMW || 0).toFixed(1),
+      t: +(window.__tcsim.state.meta.simTime / 60).toFixed(0),
+      events: (window.__tcsim.state.events || []).length,
+      faults: (window.__tcsim.state.faults || []).length,
+    }));
+    s.assert(after.mode === 'SHUTDOWN_COLD', `unit is ${after.mode}, not SHUTDOWN COLD after the reset`);
+    s.assert(after.mw < 1, `unit still making ${after.mw} MW after the reset`);
+    return { detail: `${before.mw} MW / ${before.events} events → ${after.mode}, ${after.mw} MW, clock ${after.t} min, ${after.events} events` };
+  }, { severity: 'medium' });
+
   await s.test('no JavaScript errors accumulated over the whole session', () => {
     s.assert(pageErrors.length === 0, `page errors: ${pageErrors.slice(0, 3).join(' | ')}`);
     s.assert(consoleErrors.length === 0, `console errors: ${consoleErrors.slice(0, 3).join(' | ')}`);
