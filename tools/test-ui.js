@@ -27,32 +27,38 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
  * Bring the unit back to SHUTDOWN COLD so the tutorial tests start from the
- * state they are written for. Runs at 600x so a full coast-down takes seconds.
+ * state they are written for. The tutorial only offers itself on the first
+ * snapshot after a page load, so this has to run BEFORE the page is opened —
+ * doing it afterwards leaves the unit cold but the tutorial already declined.
+ * Uses the HTTP API directly (no browser needed) and runs at 600x so a full
+ * coast-down takes seconds.
  */
-async function ensureShutdownCold(page) {
-  const mode = async () => page.evaluate(() => {
-    const el = document.getElementById('mode');
-    return el ? el.textContent.trim().toUpperCase().replace(/\s+/g, '_') : '';
-  });
-  const send = async (cmd, value) => {
-    await page.evaluate(async (c, v) => {
-      await fetch('/api/command', {
+async function ensureShutdownCold() {
+  const mode = async () => {
+    try {
+      const r = await fetch(`${BASE}/api/snapshot`);
+      const j = await r.json();
+      return String((j.meta && j.meta.mode) || '').toUpperCase();
+    } catch { return ''; }
+  };
+  const cmd = async (c, v) => {
+    try {
+      await fetch(`${BASE}/api/command`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ cmd: c, value: v }),
       });
-    }, cmd, value);
+    } catch { /* best effort */ }
   };
   if (await mode() === 'SHUTDOWN_COLD') return;
-  await send('speedFactor', 600);
-  await send('shutdown', true);
-  for (let i = 0; i < 60; i++) {
+  await cmd('speedFactor', 600);
+  await cmd('shutdown', true);
+  for (let i = 0; i < 45; i++) {
     await wait(2000);
     if (await mode() === 'SHUTDOWN_COLD') return;
-    if (i === 20) await send('resetMFT', true);   // clear a latched trip so the unit can restart
+    if (i === 15) await cmd('resetMFT', true);   // clear a latched trip so the unit can restart
   }
   console.log('  ! could not bring the unit back to SHUTDOWN COLD — tutorial tests will fail');
 }
-
 
 (async () => {
   const browser = await puppeteer.launch({
@@ -80,9 +86,14 @@ async function ensureShutdownCold(page) {
     el.click();
   }, sel);
 
+  // The simulator on BASE may be warm from an earlier session; the guided
+  // tutorial only offers itself from SHUTDOWN COLD, so return the unit to cold
+  // before the page is opened.
+  await ensureShutdownCold();
+
   /* ---------------- first load ---------------- */
   await s.test('the HMI loads and connects to the live feed', async () => {
-    await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
+await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     await wait(4000);
     const st = await page.evaluate(() => ({
       conn: document.getElementById('conn').textContent,
@@ -122,12 +133,6 @@ async function ensureShutdownCold(page) {
   }, { severity: 'high' });
 
   /* ---------------- guided tutorial ---------------- */
-  // The suite runs against whatever simulator is on BASE, which may already be
-  // on load from an earlier session: the tutorial only offers itself from
-  // SHUTDOWN COLD, so bring the unit back to cold first. Without this the seven
-  // tutorial tests fail for the wrong reason — a warm unit, not a broken UI.
-  await ensureShutdownCold(page);
-
   await s.test('the guided start-up tutorial offers itself on first visit', async () => {
     const st = await page.evaluate(() => {
       const el = document.getElementById('tutor');
