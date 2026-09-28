@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-28T10:49:07.755Z",
+  "generatedAt": "2026-09-28T12:32:22.168Z",
   "version": "1.0.0",
-  "head": "a157349",
+  "head": "fd42538",
   "suites": [
     {
       "key": "sim",
@@ -20,11 +20,11 @@
         "numeric"
       ],
       "ok": true,
-      "wallMs": 804911,
+      "wallMs": 0,
       "result": {
         "suite": "Plant model & physics",
         "category": "physics",
-        "durationMs": 1997801,
+        "durationMs": 1610570,
         "tests": [
           {
             "name": "steam tables: saturation temperature matches IAPWS within 1.5 K",
@@ -48,7 +48,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "h=3380 kJ/kg (IAPWS ≈3390)",
-            "ms": 1
+            "ms": 0
           },
           {
             "name": "cold start-up runs the whole sequence and synchronises",
@@ -56,7 +56,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "synchronised at 270 min, 22 MW, 3000 rpm",
-            "ms": 48507
+            "ms": 42895
           },
           {
             "name": "start-up timings follow a realistic cold-start curve",
@@ -72,7 +72,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "max ΔT 17.4 K, max rate 116 K/h (above 100 °C)",
-            "ms": 46182
+            "ms": 41067
           },
           {
             "name": "manual MFT trips the boilers and turbine; reset clears it",
@@ -80,7 +80,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "tripped and reset at 338 min, all fuel off within 2 min",
-            "ms": 73594
+            "ms": 66408
           },
           {
             "name": "manual turbine trip opens the breaker and unloads the machine",
@@ -88,7 +88,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "tripped from 0 MW — breaker open, speed falling",
-            "ms": 67901
+            "ms": 60766
           },
           {
             "name": "loss of all ID fans while fired produces a master fuel trip",
@@ -96,7 +96,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "MFT: All ID fans tripped (peak furnace draft 1.95 kPa)",
-            "ms": 63410
+            "ms": 55308
           },
           {
             "name": "loss of condenser vacuum trips the turbine",
@@ -104,7 +104,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "turbine trip: Condenser vacuum low",
-            "ms": 78261
+            "ms": 68521
           },
           {
             "name": "unit loads to 500 MW and holds steady for 60 simulated minutes",
@@ -112,7 +112,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "492 MW gross / 441 MW net · drum ±14 mm · MS 537–539 °C · vac 8.9 kPa · HR 11455 kJ/kWh",
-            "ms": 231958
+            "ms": 205154
           },
           {
             "name": "steady-state boiler performance is physically plausible at 500 MW",
@@ -128,7 +128,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "drum split 0.00 MPa (A 15.67 / B 15.67), safety valves seated",
-            "ms": 0
+            "ms": 1
           },
           {
             "name": "gross heat rate is within 25 % of the 9 500 kJ/kWh design",
@@ -144,7 +144,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "UNLOADING → COASTDOWN → TURNING_GEAR → POST_PURGE → SHUTDOWN_COLD · breaker open, 0 rpm",
-            "ms": 31175
+            "ms": 29477
           },
           {
             "name": "boiler tube leak is progressive and detectable by the operator",
@@ -152,7 +152,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "leak 90.0 %, 30.6 t/h, fw−ms -12 t/h (was -33)",
-            "ms": 211298
+            "ms": 193853
           },
           {
             "name": "load ramps up to 12 MW/min (1.8 %/min) complete without a trip",
@@ -160,7 +160,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "6 MW/min: ok · 12 MW/min: ok",
-            "ms": 138616
+            "ms": 124703
           },
           {
             "name": "Part-load setpoints settle below the target",
@@ -184,7 +184,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "34 faults injected and cleared cleanly",
-            "ms": 133524
+            "ms": 120059
           },
           {
             "name": "sampled faults produce the annunciation an operator would expect",
@@ -192,7 +192,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "6/6 sampled faults annunciate correctly",
-            "ms": 68451
+            "ms": 62547
           },
           {
             "name": "no NaN / Infinity anywhere in a full start → load → trip snapshot",
@@ -200,7 +200,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "2000 min simulated, snapshot numerically clean",
-            "ms": 228573
+            "ms": 169680
           },
           {
             "name": "simulation is deterministic for identical inputs",
@@ -208,15 +208,15 @@
             "severity": "info",
             "status": "fail",
             "detail": "two identical runs diverged: \"[\\\"ONLINE\\\",\\\"258.464538\\\",\\\"12.633808\\\",\\\"3000.4332\\\"]\" != \"[\\\"ONLINE\\\",\\\"239.530202\\\",\\\"12.636477\\\",\\\"3000.4332\\\"]\"",
-            "ms": 382510
+            "ms": 246367
           },
           {
             "name": "engine keeps up with real time at 600× acceleration",
             "category": "physics",
             "severity": "info",
             "status": "fail",
-            "detail": "415.7 ms per 200 ms tick — cannot keep up in real time",
-            "ms": 140126
+            "detail": "262.2 ms per 200 ms tick — cannot keep up in real time",
+            "ms": 89310
           },
           {
             "name": "snapshot is small enough for a 5 Hz WebSocket feed",
@@ -224,7 +224,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "34.0 KB full / 10.7 KB light at 5 Hz",
-            "ms": 53599
+            "ms": 34288
           }
         ],
         "passed": 21,
@@ -236,13 +236,12 @@
       "key": "api",
       "file": "tools/test-api.js",
       "title": "API, protocol & resilience",
-      "group": "",
       "ok": true,
-      "wallMs": 4576,
+      "wallMs": 0,
       "result": {
         "suite": "HTTP & WebSocket API",
         "category": "feature",
-        "durationMs": 4158,
+        "durationMs": 4201,
         "tests": [
           {
             "name": "GET / serves the HMI",
@@ -258,7 +257,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "all modules + vendored Three.js served locally (works offline)",
-            "ms": 29
+            "ms": 17
           },
           {
             "name": "unknown paths return a 404 and do not leak files",
@@ -266,15 +265,15 @@
             "severity": "info",
             "status": "pass",
             "detail": "404 handler responds with plain text",
-            "ms": 4
+            "ms": 5
           },
           {
             "name": "GET /api/snapshot returns a complete plant snapshot",
             "category": "feature",
             "severity": "info",
             "status": "pass",
-            "detail": "13 top-level groups in 5 ms",
-            "ms": 5
+            "detail": "13 top-level groups in 4 ms",
+            "ms": 4
           },
           {
             "name": "GET /api/design, /api/history and /api/faults respond correctly",
@@ -290,7 +289,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "loadSetpoint and rampRate applied",
-            "ms": 15
+            "ms": 26
           },
           {
             "name": "POST /api/command with unknown or malformed input does not crash the server",
@@ -298,7 +297,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "6 malformed payloads handled, no prototype pollution",
-            "ms": 13
+            "ms": 15
           },
           {
             "name": "fault injection and clearing work through the API",
@@ -306,7 +305,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "inject → listed → clear round trip",
-            "ms": 9
+            "ms": 10
           },
           {
             "name": "injecting an unknown fault id is rejected cleanly",
@@ -314,7 +313,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "rejected with ok:false, server still healthy",
-            "ms": 3
+            "ms": 5
           },
           {
             "name": "clearing with \"*\" clears every active fault",
@@ -322,7 +321,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "all faults cleared",
-            "ms": 8
+            "ms": 7
           },
           {
             "name": "oversized request bodies are rejected (1 MB JSON limit)",
@@ -330,7 +329,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "oversized body → HTTP 413, server healthy",
-            "ms": 16
+            "ms": 36
           },
           {
             "name": "WebSocket feed delivers welcome + snapshots and answers pings",
@@ -338,7 +337,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "13 snapshots in 2.5 s, ping/pong ok, version 1.0.0",
-            "ms": 2513
+            "ms": 2526
           },
           {
             "name": "WebSocket accepts commands and rejects garbage without dying",
@@ -346,7 +345,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "malformed frames ignored, server still broadcasting",
-            "ms": 814
+            "ms": 812
           },
           {
             "name": "50 rapid commands are all handled without error",
@@ -362,7 +361,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "29.6 KB per snapshot",
-            "ms": 1
+            "ms": 4
           }
         ],
         "passed": 15,
@@ -374,13 +373,12 @@
       "key": "ui",
       "file": "tools/test-ui.js",
       "title": "Usability & front end",
-      "group": "",
       "ok": true,
-      "wallMs": 231136,
+      "wallMs": 0,
       "result": {
         "suite": "Usability & front-end",
         "category": "usability",
-        "durationMs": 230454,
+        "durationMs": 339975,
         "tests": [
           {
             "name": "the HMI loads and connects to the live feed",
@@ -388,7 +386,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "websocket live, mode SHUTDOWN COLD, 0.0 MW",
-            "ms": 4690
+            "ms": 4618
           },
           {
             "name": "no JavaScript errors on load or during operation",
@@ -403,8 +401,8 @@
             "category": "usability",
             "severity": "high",
             "status": "pass",
-            "detail": "411 meshes in the scene graph, 35978 triangles per frame",
-            "ms": 458
+            "detail": "411 meshes in the scene graph, 35754 triangles per frame",
+            "ms": 292
           },
           {
             "name": "the guided start-up tutorial offers itself on first visit",
@@ -412,7 +410,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "first step \"1 · Before you start\" with 2 controls",
-            "ms": 413
+            "ms": 296
           },
           {
             "name": "tutorial step 1 waits for the operator (does not auto-advance)",
@@ -420,7 +418,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "still on step 1 after 3 s of live snapshots",
-            "ms": 3014
+            "ms": 3111
           },
           {
             "name": "the tutorial highlights the control each step is about",
@@ -428,7 +426,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "\"2 · Set time acceleration\" highlights #speed and shows a live readout",
-            "ms": 1644
+            "ms": 1172
           },
           {
             "name": "tutorial assist buttons drive the plant, not just the text",
@@ -436,7 +434,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "time acceleration now 60× (selector 60×)",
-            "ms": 1951
+            "ms": 1744
           },
           {
             "name": "the tutorial advances only when the plant condition is met",
@@ -444,15 +442,15 @@
             "severity": "high",
             "status": "pass",
             "detail": "step 3 → 4, plant mode PRESTART",
-            "ms": 3638
+            "ms": 3287
           },
           {
             "name": "the tutorial runs the whole cold start-up to a loaded unit",
             "category": "usability",
             "severity": "critical",
             "status": "pass",
-            "detail": "completed in 393 simulated minutes at 340 MW (89 s wall)",
-            "ms": 89843
+            "detail": "completed in 1033 simulated minutes at 301 MW (58 s wall)",
+            "ms": 58416
           },
           {
             "name": "the completion summary reports the achieved operating point",
@@ -460,23 +458,23 @@
             "severity": "info",
             "status": "pass",
             "detail": "7-row operating summary shown",
-            "ms": 653
+            "ms": 446
           },
           {
             "name": "the autopilot takes the unit the rest of the way to load hands-off",
             "category": "usability",
             "severity": "medium",
             "status": "pass",
-            "detail": "346 → 499 MW, state ON_LOAD — on load — holding 499 MW (3 advisory alarms)",
-            "ms": 27935
+            "detail": "299 → 498 MW, state ON_LOAD — on load — holding 498 MW (3 advisory alarms)",
+            "ms": 53413
           },
           {
             "name": "the bottom bar shows the build version and source commit",
             "category": "usability",
             "severity": "low",
             "status": "pass",
-            "detail": "v1.0.0 · a157349",
-            "ms": 7931
+            "detail": "v1.0.0 · fd42538",
+            "ms": 5731
           },
           {
             "name": "operator controls stay clickable with the tutorial panel open",
@@ -484,7 +482,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok",
-            "ms": 9719
+            "ms": 7798
           },
           {
             "name": "sound is off by default and starts on the operator's click",
@@ -492,31 +490,31 @@
             "severity": "info",
             "status": "pass",
             "detail": "AudioContext running, graph built",
-            "ms": 3494
+            "ms": 2581
           },
           {
             "name": "the plant sound is actually synthesised (measured on the master bus)",
             "category": "usability",
             "severity": "high",
             "status": "pass",
-            "detail": "master bus rms 0.1103, peak 0.290 (no clipping)",
-            "ms": 29778
+            "detail": "master bus rms 0.1158, peak 0.300 (no clipping)",
+            "ms": 17905
           },
           {
             "name": "sound tracks the plant: each bus is driven by its own variable",
             "category": "usability",
             "severity": "info",
             "status": "pass",
-            "detail": "furnace 0.52 · fans 0.125 · mills 0.15 · steam 0.119 · vent 0.033 · leak 0 · turbine 0.201 · generator 0.092 · pumps 0.053 · water 0.075 · coal 0.05",
-            "ms": 655
+            "detail": "furnace 0.52 · fans 0.123 · mills 0.147 · steam 0.115 · vent 0.042 · leak 0 · turbine 0.195 · generator 0.09 · pumps 0.053 · water 0.075 · coal 0.05",
+            "ms": 412
           },
           {
             "name": "volume control works and the setting survives a reload",
             "category": "usability",
             "severity": "info",
             "status": "pass",
-            "detail": "master gain 0.251, setting restored after reload (25 %, 🔊 SOUND ON)",
-            "ms": 6139
+            "detail": "master gain 0.254, setting restored after reload (25 %, 🔊 SOUND ON)",
+            "ms": 4945
           },
           {
             "name": "all eight side tabs open and render content",
@@ -524,7 +522,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "8 tabs: alarms, plant, boiler, turb, bop, faults, proc, events",
-            "ms": 10798
+            "ms": 6954
           },
           {
             "name": "every 3D view preset works without errors",
@@ -532,7 +530,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown",
-            "ms": 7164
+            "ms": 4472
           },
           {
             "name": "layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap)",
@@ -540,15 +538,15 @@
             "severity": "medium",
             "status": "pass",
             "detail": "1366×768 ok · 1920×1080 ok",
-            "ms": 4390
+            "ms": 3502
           },
           {
             "name": "primary controls are reachable and labelled",
             "category": "usability",
             "severity": "info",
             "status": "pass",
-            "detail": "11 controls in the bottom bar, all labelled and ≥40 px wide",
-            "ms": 747
+            "detail": "12 controls in the bottom bar, all labelled and ≥40 px wide",
+            "ms": 541
           },
           {
             "name": "faults can be injected and cleared from the Faults tab",
@@ -556,7 +554,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "filter → inject → symptoms shown → clear (TUBE_LEAK)",
-            "ms": 8551
+            "ms": 5484
           },
           {
             "name": "the operator UI gives no hint that the admin console exists",
@@ -564,7 +562,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "no mention, no link; robots.txt disallows the path",
-            "ms": 1660
+            "ms": 990
           },
           {
             "name": "the hidden console still loads and offers one-time registration",
@@ -572,7 +570,15 @@
             "severity": "info",
             "status": "pass",
             "detail": "reachable at /admin, registrationOpen=true",
-            "ms": 4754
+            "ms": 1863
+          },
+          {
+            "name": "the RESET PLANT button returns the simulator to a cold unit",
+            "category": "usability",
+            "severity": "medium",
+            "status": "pass",
+            "detail": "0 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 26 min, 0 events",
+            "ms": 149594
           },
           {
             "name": "no JavaScript errors accumulated over the whole session",
@@ -591,7 +597,7 @@
             "ms": 0
           }
         ],
-        "passed": 25,
+        "passed": 26,
         "failed": 0,
         "notes": 1
       }
@@ -600,13 +606,12 @@
       "key": "sec",
       "file": "tools/test-security.js",
       "title": "Security & vulnerabilities",
-      "group": "",
       "ok": true,
-      "wallMs": 2267,
+      "wallMs": 0,
       "result": {
         "suite": "Security & vulnerabilities",
         "category": "security",
-        "durationMs": 1837,
+        "durationMs": 2235,
         "tests": [
           {
             "name": "admin status reports registration open on a fresh install",
@@ -614,7 +619,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "registration open, no administrator yet",
-            "ms": 8
+            "ms": 7
           },
           {
             "name": "weak credentials are rejected",
@@ -622,7 +627,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "password < 8 chars, username < 3 chars and empty body all rejected with 400",
-            "ms": 18
+            "ms": 15
           },
           {
             "name": "first valid registration succeeds and sets an HttpOnly session cookie",
@@ -630,7 +635,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "registered \"chiefengineer\", 64-char token, HttpOnly + SameSite=Lax",
-            "ms": 48
+            "ms": 42
           },
           {
             "name": "password is stored as a salted scrypt hash, never in clear text",
@@ -646,7 +651,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "second registration rejected with HTTP 403 — one-time registration enforced",
-            "ms": 5
+            "ms": 4
           },
           {
             "name": "every privileged admin endpoint rejects anonymous callers",
@@ -654,7 +659,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "5 privileged endpoints all return 401 without a session",
-            "ms": 7
+            "ms": 6
           },
           {
             "name": "forged and tampered session cookies are rejected",
@@ -662,7 +667,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "4 forged cookies rejected with 401",
-            "ms": 5
+            "ms": 4
           },
           {
             "name": "login rejects a wrong password and accepts the right one",
@@ -670,7 +675,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "wrong password and unknown user → 401, valid credentials → 200 + HttpOnly cookie",
-            "ms": 90
+            "ms": 77
           },
           {
             "name": "authenticated visitor list exposes WAN IP and geolocation fields",
@@ -678,7 +683,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "1 visitor(s); sample 127.0.0.1 → Local network, RFC1918",
-            "ms": 312
+            "ms": 309
           },
           {
             "name": "logout invalidates the session",
@@ -686,7 +691,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "session destroyed on logout, subsequent calls rejected",
-            "ms": 4
+            "ms": 3
           },
           {
             "name": "/admin page is served with cache and indexing protections",
@@ -694,7 +699,7 @@
             "severity": "medium",
             "status": "pass",
             "detail": "Cache-Control: no-store, no-cache, must-revalidate, private · X-Robots-Tag: noindex, nofollow, noarchive",
-            "ms": 2
+            "ms": 3
           },
           {
             "name": "robots.txt disallows /admin and /api/",
@@ -710,7 +715,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "no link, script reference or menu entry to the console anywhere in the public UI",
-            "ms": 1
+            "ms": 0
           },
           {
             "name": "path traversal cannot read files outside public/",
@@ -718,7 +723,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "7 traversal payloads blocked",
-            "ms": 8
+            "ms": 9
           },
           {
             "name": "the update endpoint cannot be driven with injected shell input",
@@ -742,7 +747,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "malformed JSON → HTTP 400, server still serving",
-            "ms": 7
+            "ms": 6
           },
           {
             "name": "no credentials or tokens are committed to the repository",
@@ -750,7 +755,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "56 tracked files and the full history scanned — no secrets",
-            "ms": 219
+            "ms": 346
           },
           {
             "name": "runtime data (admin credentials, sessions) is excluded from git",
@@ -758,7 +763,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "data/, node_modules/, .env and logs/ are all ignored",
-            "ms": 0
+            "ms": 1
           },
           {
             "name": "npm dependency audit (express, ws)",
@@ -766,7 +771,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "advisories — critical 0, high 0, moderate 0, low 0",
-            "ms": 491
+            "ms": 791
           },
           {
             "name": "no dangerous patterns in the server source",

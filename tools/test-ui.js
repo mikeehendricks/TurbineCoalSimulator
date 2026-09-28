@@ -49,15 +49,24 @@ async function ensureShutdownCold() {
       });
     } catch { /* best effort */ }
   };
-  if (await mode() === 'SHUTDOWN_COLD') return;
+  if (await mode() === 'SHUTDOWN_COLD') { await cmd('speedFactor', 1); return; }
+  // The run-up only takes seconds at 600x, but the time acceleration has to go
+  // back afterwards: tutorial step 2 asks the operator to raise it to at least
+  // 30x, and it would complete itself before the step is even shown.
   await cmd('speedFactor', 600);
   await cmd('shutdown', true);
+  let cold = false;
   for (let i = 0; i < 45; i++) {
     await wait(2000);
-    if (await mode() === 'SHUTDOWN_COLD') return;
+    if (await mode() === 'SHUTDOWN_COLD') { cold = true; break; }
     if (i === 15) await cmd('resetMFT', true);   // clear a latched trip so the unit can restart
   }
-  console.log('  ! could not bring the unit back to SHUTDOWN COLD — tutorial tests will fail');
+  // Restore the simulator's as-new default (1x), not whatever happened to be
+  // set: tutorial step 2 asks the operator to raise the acceleration to at
+  // least 30x, so leaving it high from an earlier run completes that step
+  // before it is even shown.
+  await cmd('speedFactor', 1);
+  if (!cold) console.log('  ! could not bring the unit back to SHUTDOWN COLD — tutorial tests will fail');
 }
 
 (async () => {

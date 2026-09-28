@@ -1,8 +1,8 @@
 # Executive test report — turbine-coal-simulator 1.0.0
 
 **Verdict: PASS WITH MINOR FINDINGS** — 2 low/medium findings raised.
-83/90 checks passed · 5 observations · 13 defects found and fixed.
-Generated Mon, 28 Sep 2026 10:49:07 GMT from `docs/test-results.json`.
+84/91 checks passed · 5 observations · 13 defects found and fixed.
+Generated Mon, 28 Sep 2026 12:32:22 GMT from `docs/test-results.json`.
 
 ## 1. Summary
 
@@ -18,10 +18,10 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 
 | Suite | Passed | Failed | Notes | Time |
 |---|---:|---:|---:|---:|
-| Plant model & physics | 21 | 2 | 2 | 1997.8 s |
+| Plant model & physics | 21 | 2 | 2 | 1610.6 s |
 | API, protocol & resilience | 15 | 0 | 0 | 4.2 s |
-| Usability & front end | 25 | 0 | 1 | 230.5 s |
-| Security & vulnerabilities | 22 | 0 | 2 | 1.8 s |
+| Usability & front end | 26 | 0 | 1 | 340.0 s |
+| Security & vulnerabilities | 22 | 0 | 2 | 2.2 s |
 
 ### Plant model & physics
 
@@ -50,7 +50,7 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | info | load ramps up to 12 MW/min (1.8 %/min) complete without a trip | 6 MW/min: ok · 12 MW/min: ok |
 | PASS | info | sampled faults produce the annunciation an operator would expect | 6/6 sampled faults annunciate correctly |
 | FAIL | info | simulation is deterministic for identical inputs | two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]" |
-| FAIL | info | engine keeps up with real time at 600× acceleration | 415.7 ms per 200 ms tick — cannot keep up in real time |
+| FAIL | info | engine keeps up with real time at 600× acceleration | 262.2 ms per 200 ms tick — cannot keep up in real time |
 | PASS | info | snapshot is small enough for a 5 Hz WebSocket feed | 34.0 KB full / 10.7 KB light at 5 Hz |
 
 ### API, protocol & resilience
@@ -61,7 +61,7 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | info | GET / serves the HMI | 19 KB HTML |
 | PASS | info | static assets are served (/js/app.js, /vendor/three/three.module.js) | all modules + vendored Three.js served locally (works offline) |
 | PASS | info | unknown paths return a 404 and do not leak files | 404 handler responds with plain text |
-| PASS | info | GET /api/snapshot returns a complete plant snapshot | 13 top-level groups in 5 ms |
+| PASS | info | GET /api/snapshot returns a complete plant snapshot | 13 top-level groups in 4 ms |
 | PASS | info | GET /api/design, /api/history and /api/faults respond correctly | 34 faults with cause, symptoms and operator actions |
 | PASS | info | POST /api/command applies operator commands | loadSetpoint and rampRate applied |
 | PASS | info | fault injection and clearing work through the API | inject → listed → clear round trip |
@@ -78,30 +78,31 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | Result | Sev | Check | Evidence |
 |---|---|---|---|
 | PASS | critical | the HMI loads and connects to the live feed | websocket live, mode SHUTDOWN COLD, 0.0 MW |
-| PASS | critical | the tutorial runs the whole cold start-up to a loaded unit | completed in 393 simulated minutes at 340 MW (89 s wall) |
+| PASS | critical | the tutorial runs the whole cold start-up to a loaded unit | completed in 1033 simulated minutes at 301 MW (58 s wall) |
 | PASS | high | no JavaScript errors on load or during operation | clean console |
-| PASS | high | the 3D station renders (canvas is not blank) | 411 meshes in the scene graph, 35978 triangles per frame |
+| PASS | high | the 3D station renders (canvas is not blank) | 411 meshes in the scene graph, 35754 triangles per frame |
 | PASS | high | the guided start-up tutorial offers itself on first visit | first step "1 · Before you start" with 2 controls |
 | PASS | high | the tutorial advances only when the plant condition is met | step 3 → 4, plant mode PRESTART |
 | PASS | high | operator controls stay clickable with the tutorial panel open | 800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok |
-| PASS | high | the plant sound is actually synthesised (measured on the master bus) | master bus rms 0.1103, peak 0.290 (no clipping) |
+| PASS | high | the plant sound is actually synthesised (measured on the master bus) | master bus rms 0.1158, peak 0.300 (no clipping) |
 | PASS | high | faults can be injected and cleared from the Faults tab | filter → inject → symptoms shown → clear (TUBE_LEAK) |
 | PASS | high | the operator UI gives no hint that the admin console exists | no mention, no link; robots.txt disallows the path |
 | PASS | high | no JavaScript errors accumulated over the whole session | 0 console errors, 0 page errors |
-| PASS | medium | the autopilot takes the unit the rest of the way to load hands-off | 346 → 499 MW, state ON_LOAD — on load — holding 499 MW (3 advisory alarms) |
+| PASS | medium | the autopilot takes the unit the rest of the way to load hands-off | 299 → 498 MW, state ON_LOAD — on load — holding 498 MW (3 advisory alarms) |
 | PASS | medium | layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap) | 1366×768 ok · 1920×1080 ok |
-| PASS | low | the bottom bar shows the build version and source commit | v1.0.0 · a157349 |
+| PASS | medium | the RESET PLANT button returns the simulator to a cold unit | 0 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 26 min, 0 events |
+| PASS | low | the bottom bar shows the build version and source commit | v1.0.0 · fd42538 |
 | NOTE | low | Tutorial and sound state are stored per browser | The tutorial auto-offers itself once per browser (localStorage "tcsim.tutorialSeen") and the sound preference persists per browser. Clear site data — or use the 🎓 TUTORIAL button — to run the guided start-up again on the same machine. |
 | PASS | info | tutorial step 1 waits for the operator (does not auto-advance) | still on step 1 after 3 s of live snapshots |
 | PASS | info | the tutorial highlights the control each step is about | "2 · Set time acceleration" highlights #speed and shows a live readout |
 | PASS | info | tutorial assist buttons drive the plant, not just the text | time acceleration now 60× (selector 60×) |
 | PASS | info | the completion summary reports the achieved operating point | 7-row operating summary shown |
 | PASS | info | sound is off by default and starts on the operator's click | AudioContext running, graph built |
-| PASS | info | sound tracks the plant: each bus is driven by its own variable | furnace 0.52 · fans 0.125 · mills 0.15 · steam 0.119 · vent 0.033 · leak 0 · turbine 0.201 · generator 0.092 · pumps 0.053 · water 0.075 · coal 0.05 |
-| PASS | info | volume control works and the setting survives a reload | master gain 0.251, setting restored after reload (25 %, 🔊 SOUND ON) |
+| PASS | info | sound tracks the plant: each bus is driven by its own variable | furnace 0.52 · fans 0.123 · mills 0.147 · steam 0.115 · vent 0.042 · leak 0 · turbine 0.195 · generator 0.09 · pumps 0.053 · water 0.075 · coal 0.05 |
+| PASS | info | volume control works and the setting survives a reload | master gain 0.254, setting restored after reload (25 %, 🔊 SOUND ON) |
 | PASS | info | all eight side tabs open and render content | 8 tabs: alarms, plant, boiler, turb, bop, faults, proc, events |
 | PASS | info | every 3D view preset works without errors | 9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown |
-| PASS | info | primary controls are reachable and labelled | 11 controls in the bottom bar, all labelled and ≥40 px wide |
+| PASS | info | primary controls are reachable and labelled | 12 controls in the bottom bar, all labelled and ≥40 px wide |
 | PASS | info | the hidden console still loads and offers one-time registration | reachable at /admin, registrationOpen=true |
 
 ### Security & vulnerabilities
