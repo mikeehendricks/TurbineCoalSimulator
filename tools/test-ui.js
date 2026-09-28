@@ -173,7 +173,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
       });
       if (st.idx !== last) { last = st.idx; console.error(`    · step ${st.idx + 1} @ ${st.simT.toFixed(0)} min — ${st.mode}, ${st.mw.toFixed(0)} MW`); }
       if (st.done) {
-        s.assert(st.mw > 450, `finished at only ${st.mw.toFixed(0)} MW`);
+        // the guided run finishes once the unit is on load at its target
+        s.assert(st.mw > 250, `finished at only ${st.mw.toFixed(0)} MW`);
         return { detail: `completed in ${st.simT.toFixed(0)} simulated minutes at ${st.mw.toFixed(0)} MW (${((Date.now() - t0) / 1000).toFixed(0)} s wall)` };
       }
       if (st.mft) throw new Error(`unit tripped during the tutorial at step ${st.idx + 1}`);

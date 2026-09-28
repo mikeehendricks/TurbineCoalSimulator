@@ -227,21 +227,21 @@ export class Tutorial {
       },
       {
         id: 'load',
-        title: '12 · Load the unit up',
+        title: '12 · Load the unit to full output',
         control: '#loadSp',
         why: 'Take the unit up at 6 MW/min (about 1 %/min). Above roughly 500 MW the ' +
           'drum pressure approaches the safety valves at 19.2 MPa, so the last ' +
           '100 MW is a genuine boiler/turbine balancing exercise: watch drum ' +
           'pressure, drum level, main-steam temperature (538 °C design) and ' +
           'condenser vacuum (design 9.5 kPa) together.',
-        action: 'Set <b>Load setpoint 150 MW</b>, press <b>set</b>, set <b>Ramp ' +
+        action: 'Set <b>Load setpoint 500 MW</b>, press <b>set</b>, set <b>Ramp ' +
           '6 MW/min</b>, press <b>set</b>. The automatic runback holds the ramp ' +
           'whenever the drum level or the steam temperature is unsettled, so let ' +
           'it take the load in its own time.',
         hint: (s) => `${f0(s.plant.grossMW)} MW of ${f0(s.meta.targetLoad)} MW set · ` +
           `drum ${f1(avgP(s))} MPa · MS ${f0(lead(s).msTemp)} °C · vacuum ${f1(s.condenser.vacuum)} kPa · ` +
           `coal ${f0(s.plant.totalCoal)} t/h`,
-        done: (s) => s.plant.grossMW >= 45,
+        done: (s) => s.plant.grossMW >= 300,
         assist: () => this.setLoad(150, 6),
         assistLabel: 'Set 150 MW @ 6 MW/min',
       },
@@ -256,7 +256,7 @@ export class Tutorial {
         action: 'Hold steady for 30 seconds of plant time. Then the tutorial is complete.',
         hint: (s) => `Hold: level <b>${f0(lead(s).drumLevelTotal)} mm</b> (±100) · ` +
           `MS <b>${f0(lead(s).msTemp)} °C</b> (520–550) · vacuum <b>${f1(s.condenser.vacuum)} kPa</b> (&lt;18)`,
-        done: (s) => s.plant.grossMW >= 40
+        done: (s) => s.plant.grossMW >= 280
           && Math.abs(lead(s).drumLevelTotal) < 110
           && s.condenser.vacuum < 19
           && lead(s).msTemp > 500 && lead(s).msTemp < 570,
@@ -421,9 +421,8 @@ export class Tutorial {
           <tr><td>Gross heat rate</td><td>${f0(s.plant.heatRate)} kJ/kWh</td></tr>
           <tr><td>Station auxiliaries</td><td>${f0(s.plant.auxMW)} MW</td></tr>
         </table></div>
-      <div class="tt-sec"><b>What to try next</b><p>Continue loading with the
-        <b>Load setpoint</b> control — the automatic runback holds the ramp while the
-        steam temperature is unsettled, so raise the target in steps. Then inject a
+      <div class="tt-sec"><b>What to try next</b><p>Finish loading to full output with
+        the <b>Load setpoint</b> control. Then inject a
         fault from the <b>Faults</b> tab (a boiler tube leak or an ID fan trip are
         good places to start) and handle it, or press <b>■ SHUT DOWN</b> to run the
         controlled shutdown sequence to turning gear.</p></div>

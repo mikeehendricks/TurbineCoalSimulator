@@ -378,9 +378,14 @@ class Boiler {
     // MCR), scaled with the steam flow. Sized off the main-steam flow alone
     // it was only 46 t/h, which is not enough to hold 538 °C once the
     // superheater outlet climbs at high firing — the final steam temperature
-    // then sat 10–15 K above design for the whole run.
+    // then sat 10–15 K above design for the whole run. Pure proportional
+    // scaling (9.7 % of the flow) is not enough either: at part load the
+    // superheater is relatively hotter than at MCR, so the spray needs a
+    // larger share of the flow (real attemperators run 10–15 % there). The
+    // curve below keeps 90 t/h at the design flow and about 47 t/h at 30 %
+    // flow instead of 27 t/h.
     const spray1Max = (LIMITS.steam.superheatAttempMax || 90)
-      * clamp(this.msFlow / (DESIGN.steam.mainSteamFlow / 2), 0.15, 1.2);   // t/h per boiler
+      * clamp(0.25 + 0.75 * (this.msFlow / (DESIGN.steam.mainSteamFlow / 2)), 0.35, 1.2);   // t/h per boiler
     const sprayAvailable = this.fwPressure > this.drumPressure + 1.0 && this.msFlow > 30;
     if (this.tempCtrlAuto && sprayAvailable) {
       // Stage 1 only protects the secondary superheater (it should sit shut in
@@ -875,8 +880,13 @@ class TurbineGenerator {
       vac = lag(vac, this.vacuumPumpRunning ? Math.max(12, ctx.ambient * 0.45) : 101.3, 40, dt);
     }
     // Air ingress raises the total pressure above the saturation pressure.
+    // Air ingress raises the total pressure above the saturation pressure.
+    // The design leak (0.6) gives ~0.4 kPa of air partial pressure; a severe
+    // air ingress has to be able to break the vacuum far enough to trip the
+    // machine (28 kPa), so the clamp only guards against nonsense, it does not
+    // limit the fault.
     const airPartial = this.vacuumPumpRunning
-      ? clamp(this.airIngress / Math.max(0.35, 1.6 - this.airIngress * 0.4), 0, 5)
+      ? clamp(this.airIngress / Math.max(0.35, 1.6 - this.airIngress * 0.4), 0, 30)
       : 12.0;
     let vacTarget, vacTau;
     if (this.qCond > 100 && cwKg > 1) {

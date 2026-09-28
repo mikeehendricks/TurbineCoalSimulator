@@ -879,7 +879,7 @@ class Plant {
     // turbine demand, and never more than 60 % of what is being generated.
     const genTotal = inservice.reduce((a, x) => a + Math.max(0, x.msFlow), 0);
     const surplus = Math.max(0, genTotal - this.tg.msFlow);
-    this.bypassDemand = clamp(Math.min(boilerFlow - this.tg.msFlow, surplus * 0.9), 0, minBoilerFlow);
+    this.bypassDemand = clamp(Math.min(boilerFlow - this.tg.msFlow, surplus * 0.6), 0, minBoilerFlow);
     // Coordinated (boiler-follow) control. The feed-forward and the
     // sliding-pressure schedule are driven by the UNIT DEMAND, never by the
     // measured main-steam flow: feeding measured flow back into the fuel

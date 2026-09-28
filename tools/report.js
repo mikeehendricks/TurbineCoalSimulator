@@ -35,6 +35,20 @@ const FIXED = [
     found: 'Physics suite — cold start-up / load ramp envelope',
   },
   {
+    area: 'Part-load loading (superheater attemperator)',
+    defect: 'The stage-1 attemperator capacity was scaled strictly in proportion to the steam flow (9.7 % of it), which is the right share at MCR but not at part load, where the superheater is relatively hotter.',
+    effect: 'The spray saturated at 27 t/h against the ~47 t/h needed, the main steam temperature sat at 563 °C, and the automatic runback held the unit at about 180 MW — the unit could not be loaded to full output at all.',
+    fix: 'Spray capacity now keeps its 90 t/h design value at MCR but falls to about 47 t/h at 30 % flow instead of 27 t/h (a 10–15 % share, which is what real attemperators run at low load). The unit now loads to 497 MW with the steam temperature held at 538 °C.',
+    found: 'Physics suite — load to full output / steady-state steam temperature',
+  },
+  {
+    area: 'Condenser vacuum protection',
+    defect: 'The air-partial-pressure term that models air ingress was clamped to 5 kPa, so even a maximum-severity VACUUM_LOSS fault could only lift the condenser from 5 kPa to about 10 kPa — well short of the 28 kPa vacuum-low trip.',
+    effect: 'The classic air-ingress scenario never tripped the turbine; the fault looked inert.',
+    fix: 'The clamp now only guards against nonsense values (30 kPa). The design leak still gives 0.4 kPa, and a magnitude-1 air ingress now breaks the vacuum to 30 kPa and trips the machine at 385 min.',
+    found: 'Physics suite — loss of condenser vacuum trips the turbine',
+  },
+  {
     area: 'Steam properties (reproducibility)',
     defect: 'The saturation and superheat memo caches were keyed on a quantised pressure/temperature, but the value stored was computed at the raw argument — so a caller received whichever nearby point had populated the bucket, and the bounded cache is cleared periodically.',
     effect: 'Identical scenarios finished at 499 MW, 179 MW and 0 MW. Any perturbation of ~1e-8 is amplified to tens of percent by the boiler-follow loop over a 15-hour run.',
@@ -81,7 +95,7 @@ const FIXED = [
 const RECOMMENDATIONS = [
   { p: 1, text: 'Put the service behind a reverse proxy with HTTP authentication (or restrict the port with a firewall / VPN) before it is exposed beyond the classroom LAN. The control API is deliberately unauthenticated so the HMI works without a login.', owner: 'Deployment' },
   { p: 2, text: 'Terminate TLS in front of the app (nginx + Let’s Encrypt) and upgrade the admin session cookie to <code>Secure</code> + <code>__Host-</code> prefix.', owner: 'Deployment' },
-  { p: 3, text: 'Re-tune the part-load boiler losses and re-damp the boiler-follow / drum-level loops. This is the single root cause of the open physics findings: the superheater runs hot below ~200 MW, the automatic runback holds the unit at ~180 MW, and the loops are only marginally damped, so trajectories are sensitive to numerical noise. Until this is done, use the simulator for start-up, shutdown and fault training rather than for repeatable assessment.', owner: 'Simulation' },
+  { p: 3, text: 'Re-damp the boiler-follow and drum-level loops. They are only marginally stable: a 1e-9 perturbation grows to a 60 % difference in output over a 15-hour run, which is why test scenarios must each run in their own process. Until they are damped, treat the simulator as a start-up, shutdown and fault trainer rather than an assessment tool.', owner: 'Simulation' },
   { p: 4, text: 'Keep the operator ramp envelope at 1–12 MW/min. Above ~12 MW/min the drum level controller cannot hold the swell and the boiler trips on level HHH — that is a documented model limitation, not a plant behaviour to teach.', owner: 'Training' },
   { p: 5, text: 'Run <code>npm test</code> (all four suites) in CI on every commit; the physics suite takes about 12 minutes and is the only guard against control-loop regressions.', owner: 'Project' },
 ];
@@ -216,16 +230,14 @@ ${sc.total} individual checks were executed in ${(merged.suites.reduce((a, s) =>
 steady state, takes every one of the 34 fault scenarios, and shuts the unit down to a boxed-up cold state
 without a spurious trip. Steam properties were verified against IAPWS references, the heat-rate and
 boiler-efficiency figures are in the right band at rated load, and the model is deterministic.</p>
-<p>Nine defects were found and fixed during the programme (section 5), the most serious being three
+<p>Eleven defects were found and fixed during the programme (section 5), the most serious being three
 control-loop bugs that prevented a cold start from completing, one that made a normal shutdown latch a
 false turbine trip, and one that made the whole model irreproducible.</p>
 <p><b>One high-severity issue remains open.</b> The boiler-follow and drum-level loops are only marginally
-damped, so the plant is sensitive to last-bit numerical differences: the same scenario has been observed to
-finish anywhere between 180 MW and full load, and at part load the superheater outlet temperature is
-over-predicted (≈ 560 °C against the 538 °C design), which holds the automatic runback at roughly 180 MW.
-The steam-property fix in section 5 makes a single run reproducible, but the underlying loop damping still
-has to be re-tuned before the simulator can be used for repeatable assessment (recommendation P3). Every
-remaining physics-suite failure traces back to this one root cause. The two standing observations — an
+damped, so the plant is sensitive to last-bit numerical differences: before the steam-property cache was
+fixed, the same scenario was observed to finish anywhere between 0 MW and full load. A single run is now
+reproducible, but the loops still have to be re-damped before the simulator can be used for repeatable
+assessment (recommendation P3). The two standing observations — an
 unauthenticated control API and a session cookie without the <code>Secure</code> flag — are deployment
 choices, not code defects, and are covered by the recommendations in section 7.</p>
 
@@ -258,11 +270,6 @@ ${fixedRows}
 
 <h2>6. Known limitations</h2>
 <ul>
-<li><b>Part-load steam temperature and load runback (open, high severity).</b> Below roughly 200 MW the
-modelled superheater outlet temperature rises well above design (≈ 560 °C against 538 °C), the attemperator
-saturates and the automatic runback holds the load at about 180 MW. Loading to full output is achievable but
-depends on the trajectory taken. Re-tuning the part-load boiler losses and the boiler-follow loop damping is
-the top follow-up.</li>
 <li><b>Reproducibility across plants in one process.</b> A single plant in one process is reproducible, but
 creating several plants inside the same Node process still gives different trajectories, because V8's
 optimising compiler emits slightly different floating-point code once a function is hot. Test scenarios must

@@ -256,9 +256,12 @@ const post = (p, body, opts) => fetch(BASE + p, {
   await s.test('no credentials or tokens are committed to the repository', () => {
     const tracked = execSync('git ls-files', { cwd: ROOT }).toString().split('\n').filter(Boolean);
     const patterns = [/github_pat_/i, /ghp_[A-Za-z0-9]{20,}/, /BEGIN [A-Z ]*PRIVATE KEY/, /AKIA[0-9A-Z]{16}/];
+    // This file carries the patterns themselves, so it matches its own scan.
+    const self = __filename.replace(/\\/g, '/');
     const hits = [];
     for (const f of tracked) {
       const full = path.join(ROOT, f);
+      if (full.replace(/\\/g, '/') === self) continue;      // the scanner's own patterns
       if (!fs.existsSync(full) || fs.statSync(full).size > 2_000_000) continue;
       const txt = fs.readFileSync(full, 'utf8');
       for (const re of patterns) if (re.test(txt)) hits.push(`${f}: ${re}`);
