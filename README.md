@@ -348,6 +348,21 @@ always matches the repository.
 Environment overrides: `GIT_BRANCH` (default `main`), `UPDATE_SERVICE`
 (default `turbine-coal-simulator`), `APP_DIR`.
 
+### Authenticating git (maintainers)
+
+Pushing needs a fine-grained personal access token with **Contents: Read and
+write** on this repository. Keep it in `~/.tcsim/token` (mode `0600`) — outside
+the repository, because the security suite scans the tree for credentials — and
+run:
+
+```bash
+bash tools/git-auth.sh            # install credentials, point origin at the plain https URL
+bash tools/git-auth.sh --check    # confirm the token still works
+```
+
+The token is placed in the git credential store, never in `.git/config`, so
+`git remote -v` is safe to show and no credential can be committed by accident.
+
 ## Testing
 
 Four automated suites ship with the simulator. Run them all and regenerate the
