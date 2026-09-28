@@ -187,6 +187,16 @@ chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
 chmod 0750 "$APP_DIR/data"
 
 # --------------------------------------------------------------------------
+# tcs-update: the terminal front end for the update system.  A symlink keeps it
+# pointing at whatever is currently deployed, so it survives updates too.
+if [ -f "$APP_DIR/bin/tcs-update" ]; then
+  say "Installing the tcs-update command"
+  chmod 0755 "$APP_DIR/bin/tcs-update"
+  ln -sfn "$APP_DIR/bin/tcs-update" /usr/local/bin/tcs-update
+  ok "tcs-update installed to /usr/local/bin/tcs-update"
+fi
+
+# --------------------------------------------------------------------------
 if [ "$NO_SERVICE" != "1" ]; then
   say "Installing systemd unit"
 
@@ -271,8 +281,10 @@ cat <<EOF
     Admin console  http://${HOSTIP}:${PORT}${ADMIN_PATH}     (hidden — not linked anywhere)
 
     Useful commands
+      tcs-update status                 check GitHub for a newer build
+      tcs-update apply --restart        install it and restart the service
+      tcs-update log                    tail the service journal
       sudo systemctl status  turbine-coal-simulator
-      sudo journalctl -u turbine-coal-simulator -f
       sudo systemctl restart turbine-coal-simulator
 
     The admin account is created on first visit to the admin page — that is the

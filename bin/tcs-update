@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# tcs-update — terminal front end for the Turbine Coal Simulator update system.
+#
+#   tcs-update status            compare the installed build with GitHub (read-only)
+#   tcs-update apply             pull the latest code and reinstall
+#   tcs-update apply --restart   ...and restart the service
+#   tcs-update log               tail the service journal
+#
+# Installed to /usr/local/bin/tcs-update by install.sh.  It is a thin wrapper
+# around tools/update.js, which in turn runs scripts/update.sh — the same script
+# the "Update Now" button on the hidden admin page spawns.
+set -euo pipefail
+
+# Resolve the install directory: follow the symlink if /usr/local/bin holds one.
+SELF="${BASH_SOURCE[0]}"
+case "$SELF" in
+  */*) SELF_DIR="$(cd "$(dirname "$SELF")" && pwd)" ;;
+  *)   SELF_DIR="$(cd "$(dirname "$(command -v "$SELF")")" && pwd)" ;;
+esac
+if [ -d "$SELF_DIR/../tools" ] && [ -f "$SELF_DIR/../tools/update.js" ]; then
+  APP_DIR="$(cd "$SELF_DIR/.." && pwd)"
+else
+  APP_DIR="${APP_DIR:-/opt/turbine-coal-simulator}"
+fi
+SERVICE="${UPDATE_SERVICE:-turbine-coal-simulator}"
+
+CMD="${1:-status}"
+shift 2>/dev/null || true
+
+case "$CMD" in
+  log)
+    exec sudo journalctl -u "$SERVICE" -f --no-pager
+    ;;
+  status|check|apply|update)
+    if [ "$CMD" = "update" ]; then CMD=apply; fi
+    cd "$APP_DIR"
+    # Restarting the service needs root; everything else runs as the current user.
+    if [ "$CMD" = "apply" ] && [ "$(id -u)" -eq 0 ]; then
+      exec node tools/update.js apply --restart "$@"
+    fi
+    exec node tools/update.js "$CMD" "$@"
+    ;;
+  -h|--help|help)
+    cat <<EOF
+tcs-update — update the Turbine Coal Simulator from the terminal
+
+  tcs-update status            check GitHub for a newer build (read-only)
+  tcs-update apply             download and install the latest build
+  tcs-update apply --restart   ...and restart $SERVICE
+  tcs-update log               tail the service journal
+
+Install dir : $APP_DIR
+Service     : $SERVICE
+Repository  : https://github.com/mikeehendricks/TurbineCoalSimulator
+EOF
+    ;;
+  *)
+    echo "tcs-update: unknown command '$CMD' (try: status | apply | log | help)" >&2
+    exit 64
+    ;;
+esac

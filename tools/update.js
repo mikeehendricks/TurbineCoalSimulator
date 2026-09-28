@@ -112,9 +112,14 @@ function apply(restart) {
     console.error(`   Local: v${local.version} (${local.commit || 'no git'}) on ${local.branch || '?'}`);
     process.exit(2);
   }
-  const behind = !!remote.sha && !!local.commit && !remote.sha.startsWith(local.commit.slice(0, 12));
+  // Ahead/behind counts, so a build that simply has its own commits (or is
+  // newer than the branch) is not reported as "update available".
+  let ahead = 0, behind = 0;
+  const counts = git(['rev-list', '--left-right', '--count', `origin/${BRANCH}...HEAD`]);
+  if (counts) { const m = counts.split(/\s+/); behind = parseInt(m[0], 10) || 0; ahead = parseInt(m[1], 10) || 0; }
+  else { behind = !!remote.sha && !!local.commit && !remote.sha.startsWith(local.commit.slice(0, 12)) ? 1 : 0; }
   const tagBehind = !!remote.tag && remote.tag !== `v${local.version}`;
-  const available = behind || tagBehind;
+  const available = behind > 0 || (tagBehind && ahead === 0);
 
   console.log(`repository : https://github.com/${REPO}  (branch ${BRANCH})`);
   console.log(`installed  : v${local.version}  ${local.commit || '(no git metadata)'}  [${local.branch || '?'}]`);
@@ -124,8 +129,10 @@ function apply(restart) {
   console.log(`              ${remote.url}`);
   console.log('');
   if (available) {
-    console.log('UPDATE AVAILABLE — run:  node tools/update.js apply --restart');
+    console.log(`UPDATE AVAILABLE (${behind} commit${behind === 1 ? '' : 's'} behind) — apply with:  node tools/update.js apply --restart`);
     console.log('   (or press "Update Now" on the hidden admin page)');
+  } else if (ahead > 0) {
+    console.log(`Up to date — this build is ${ahead} commit${ahead === 1 ? '' : 's'} ahead of ${BRANCH} (nothing to install).`);
   } else {
     console.log('Up to date.');
   }

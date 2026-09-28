@@ -320,14 +320,22 @@ Provided as-is for operator training and education.
 
 ## Updating
 
-The simulator checks GitHub for a newer commit and can update itself. From a
-terminal in the install directory (`/opt/turbine-coal-simulator` by default):
+The simulator checks GitHub for a newer commit and can update itself. On an
+installed server, `tcs-update` is on the PATH:
 
 ```bash
-node tools/update.js status           # compare the installed build with GitHub
-node tools/update.js apply            # pull and reinstall (runs scripts/update.sh)
-node tools/update.js apply --restart   # ...and restart the systemd service
-sudo systemctl restart turbine-coal-simulator
+tcs-update status              # check GitHub for a newer build (read-only)
+tcs-update apply --restart     # install it and restart the service
+tcs-update log                 # tail the service journal
+```
+
+`tcs-update` is installed to `/usr/local/bin` by the installer as a symlink into
+the deploy directory, so it keeps working across updates. It wraps the same
+Node entry point, which is also usable directly:
+
+```bash
+node tools/update.js status
+node tools/update.js apply --restart
 ```
 
 `status` is read-only and exits with code 1 when an update is available, so it
