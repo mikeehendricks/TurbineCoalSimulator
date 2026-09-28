@@ -576,7 +576,14 @@ class Boiler {
     const load = clamp(this.qFuel / 830, 0, 1.4);
     const espEff = this.espEnergised ? DESIGN.boiler.esp.designEff * (0.4 + 0.15 * this.espFields.filter(Boolean).length) : 0.35;
     const fgdEff = ctx.fgdRunning ? DESIGN.bop.fgd.eff : 0;
-    this.dust = lag(this.dust, 18_000 * (1 - espEff) * load * (1 - 0.9 * fgdEff * 0.4), 20, dt);
+    // Outlet dust loading, mg/Nm³. Calibrated so that a unit running at
+    // continuous rating with every ESP field energised and the FGD in service
+    // sits at about 30 mg/Nm³ — comfortably inside the 50 mg/Nm³ stack limit
+    // (DUST_HI, engine.js). With the previous constant the plant emitted ~59 at
+    // design load, so the alarm latched on every normal full-load run and no
+    // operator action could clear it. ESP efficiency still dominates: de-energise
+    // the fields (eff drops to 0.35) and dust jumps by two orders of magnitude.
+    this.dust = lag(this.dust, 9_200 * (1 - espEff) * load * (1 - 0.9 * fgdEff * 0.4), 20, dt);
     this.so2 = lag(this.so2, this.qFuel > 5 ? 2100 * C.sulphur * (1 - fgdEff) / Math.max(0.2, load) * 0.62 : 0, 25, dt);
     this.noX = lag(this.noX, this.qFuel > 5 ? 260 + 420 * load * (1 + 0.06 * (this.o2 - 3.5)) : 0, 30, dt);
     this.co = lag(this.co, this.qFuel > 5 ? 25 + 180 * Math.max(0, 1.6 - this.o2) + 1600 * this.airShortfall : 0, 15, dt);

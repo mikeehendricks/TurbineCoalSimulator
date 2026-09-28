@@ -5,6 +5,7 @@
 import { PlantScene } from '/js/scene.js';
 import { Tutorial } from '/js/tutorial.js';
 import { PlantAudio } from '/js/audio.js';
+import { Autopilot } from '/js/autopilot.js';
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -18,6 +19,7 @@ let history = [];
 let faultCatalog = [];
 let audio = null;
 let tutorial = null;
+let autopilot = null;
 let tutOffered = false;
 
 /* ============================ networking ============================ */
@@ -330,8 +332,9 @@ function render() {
   if (scene) scene.bind(s);
   drawCharts(s);
 
-  /* ---- tutorial + sound (driven from the live snapshot) ---- */
+  /* ---- tutorial, sound and autopilot (driven from the live snapshot) ---- */
   if (audio) audio.update(s);
+  if (autopilot) autopilot.update(s);
   if (tutorial) {
     tutorial.update(s);
     if (!tutOffered && s.meta) {
@@ -462,23 +465,50 @@ function init() {
   volEl.addEventListener('input', () => audio.setVolume(Number(volEl.value) / 100));
   paintSound();
 
+  /* ---- shared control helpers used by the tutorial and the autopilot ---- */
+  const setSpeed = (v) => {
+    const sel = $('#speed');
+    if (sel) sel.value = String(v);
+    send({ type: 'speed', value: v });
+  };
+  const setLoad = (mw, ramp) => {
+    $('#loadSp').value = String(mw);
+    $('#ramp').value = String(ramp);
+    cmd('loadSetpoint', mw);
+    cmd('rampRate', ramp);
+  };
+
   /* ---- guided start-up tutorial ---- */
   tutorial = new Tutorial({
     send,
     cmd,
-    setSpeed: (v) => {
-      const sel = $('#speed');
-      if (sel) sel.value = String(v);
-      send({ type: 'speed', value: v });
-    },
-    setLoad: (mw, ramp) => {
-      $('#loadSp').value = String(mw);
-      $('#ramp').value = String(ramp);
-      cmd('loadSetpoint', mw);
-      cmd('rampRate', ramp);
-    },
+    setSpeed,
+    setLoad,
     sfx: (name) => audio && audio.event(name),
   });
+
+  /* ---- autopilot: start, run up and load the unit hands-off ---- */
+  autopilot = new Autopilot({
+    cmd,
+    setSpeed,
+    setLoad,
+    sfx: (name) => audio && audio.event(name),
+    el: $('#autoState'),
+  });
+  const autoBtn = $('#btnAuto');
+  const paintAuto = () => {
+    autoBtn.textContent = autopilot.active ? '🤖 AUTOPILOT ON' : '🤖 AUTOPILOT OFF';
+    autoBtn.classList.toggle('primary', autopilot.active);
+  };
+  autoBtn.addEventListener('click', () => { autopilot.toggle(); paintAuto(); });
+  paintAuto();
+  autopilot.paint();
+
+  /* ---- build stamp, bottom right ---- */
+  fetch('/api/design').then((r) => r.json()).then((d) => {
+    const v = d && d.version ? d.version : {};
+    $('#ver').textContent = `v${v.version || '—'}` + (v.commit ? ` · ${v.commit}` : '');
+  }).catch(() => { $('#ver').textContent = 'v—'; });
   $('#btnTutorial').addEventListener('click', () => {
     tutorial.toggle();
     $('#btnTutorial').classList.toggle('primary', tutorial.running);
@@ -533,6 +563,7 @@ function init() {
   window.__tcsim = {
     get state() { return state; }, get scene() { return scene; },
     get audio() { return audio; }, get tutorial() { return tutorial; },
+    get autopilot() { return autopilot; },
     send, cmd,
   };
 

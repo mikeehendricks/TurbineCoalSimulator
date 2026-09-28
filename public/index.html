@@ -47,8 +47,12 @@
     padding:5px 9px;border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:11px;text-align:left}
   #viewbtns button:hover{border-color:var(--acc);color:#fff}
 
+  /* z-index keeps the operator controls clickable: the tutorial panel (z-index 6)
+     is absolutely positioned in the same container and used to grow over the
+     buttons on short/narrow windows, so clicks never reached them. */
   #btmbar{position:absolute;left:0;right:0;bottom:0;display:flex;gap:8px;align-items:center;
-    padding:7px 10px;background:linear-gradient(0deg,rgba(5,9,14,.95),rgba(5,9,14,0));flex-wrap:wrap}
+    padding:7px 10px;background:linear-gradient(0deg,rgba(5,9,14,.95),rgba(5,9,14,0));
+    flex-wrap:wrap;z-index:20}
   button.btn{background:#16222f;border:1px solid var(--line);color:var(--txt);padding:6px 11px;
     border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:12px}
   button.btn:hover{border-color:var(--acc);color:#fff}
@@ -129,7 +133,8 @@
   .tutor{position:absolute;left:50%;top:44px;transform:translateX(-50%);width:440px;
     max-width:calc(100% - 24px);background:rgba(9,15,22,.95);border:1px solid #2b4a63;
     border-radius:8px;padding:10px 12px 9px;box-shadow:0 12px 34px rgba(0,0,0,.6);
-    z-index:6;font-size:11.5px;line-height:1.45}
+    z-index:6;font-size:11.5px;line-height:1.45;
+    max-height:calc(100% - 140px);overflow:auto}
   .tutor.fault{border-color:#a33;box-shadow:0 12px 34px rgba(140,0,0,.45)}
   .tt-head{display:flex;align-items:center;gap:8px;margin-bottom:6px}
   .tt-kicker{font-size:9.5px;letter-spacing:1.6px;color:var(--acc)}
@@ -231,6 +236,9 @@
         <button class="btn danger" id="btnMft">✖ MASTER FUEL TRIP</button>
         <button class="btn" id="btnReset">↺ RESET MFT</button>
         <span style="color:var(--dim)">|</span>
+        <button class="btn" id="btnAuto" title="Start the unit, run it up and load it hands-off">🤖 AUTOPILOT OFF</button>
+        <span id="autoState" style="font-size:10.5px;color:var(--dim);min-width:190px"></span>
+        <span style="color:var(--dim)">|</span>
         <button class="btn" id="btnTutorial">🎓 TUTORIAL</button>
         <span id="snd" title="Plant sound is synthesised live from the model — no audio files">
           <button class="btn" id="btnSound">🔇 SOUND OFF</button>
@@ -257,6 +265,9 @@
         <label style="font-size:11px;color:var(--dim)">Ambient
           <input id="amb" type="number" min="5" max="45" step="1" value="30" style="width:48px">
           <button class="btn" id="btnAmb">set</button></label>
+      
+        <span id="ver" style="margin-left:auto;font-size:10.5px;color:var(--dim);white-space:nowrap"
+              title="Simulator build — version and source commit"></span>
       </div>
     </div>
 
