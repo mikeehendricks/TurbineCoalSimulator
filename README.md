@@ -370,6 +370,29 @@ prints this recovery hint after a failed attempt.
 memory and writes it back on the next session change, which would undo the
 reset.
 
+On an installation that predates `tools/admin-reset.js`, moving the state file
+aside does the same thing and needs no new code:
+
+```bash
+sudo systemctl stop turbine-coal-simulator
+sudo mv /opt/turbine-coal-simulator/data/admin.json{,.old}
+sudo systemctl start turbine-coal-simulator
+```
+
+A failed sign-in is written to the journal with the submitted username and
+whether it matched an account, which tells you whether to look for a typo in the
+name or the password — the password itself is never logged:
+
+```
+sudo journalctl -u turbine-coal-simulator | grep '\[admin\]'
+# [admin] failed sign-in from 203.0.113.7 — username "mike" does not match any account
+# [admin] failed sign-in from 203.0.113.7 — username "mikee" matches an account, so the password is wrong
+```
+
+Usernames are trimmed on both registration and sign-in, so a stray space from a
+password manager can no longer cause a lockout that looks like a forgotten
+password.
+
 ### Authenticating git (maintainers)
 
 Pushing needs a fine-grained personal access token with **Contents: Read and

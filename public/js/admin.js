@@ -63,7 +63,7 @@ async function login() {
   try {
     await api('/api/admin/login', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: $('#lu').value, password: $('#lp').value }),
+      body: JSON.stringify({ username: $('#lu').value.trim(), password: $('#lp').value }),
     });
     msg($('#authMsg'), '', 'ok');
     await enterConsole();

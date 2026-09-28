@@ -381,14 +381,15 @@ adminApi.post('/register', (req, res) => {
   if (adminState.registered) {
     return res.status(403).json({ ok: false, error: 'An administrator already exists — registration is disabled.' });
   }
-  const { username, password, email } = req.body || {};
-  if (!username || String(username).length < 3) return res.status(400).json({ ok: false, error: 'Username must be at least 3 characters.' });
+  const uname = String((req.body || {}).username || '').trim();
+  const { password, email } = req.body || {};
+  if (uname.length < 3) return res.status(400).json({ ok: false, error: 'Username must be at least 3 characters.' });
   if (!password || String(password).length < 8) return res.status(400).json({ ok: false, error: 'Password must be at least 8 characters.' });
   const rec = hashPassword(password);
   adminState = {
     registered: true,
     user: {
-      username: String(username),
+      username: uname,
       email: email || '',
       salt: rec.salt,
       hash: rec.hash,
@@ -411,9 +412,17 @@ adminApi.post('/register', (req, res) => {
 });
 
 adminApi.post('/login', (req, res) => {
-  const { username, password } = req.body || {};
+  // Trim the username: a stray space from autofill or a password manager is the
+  // classic cause of a lockout that looks like a forgotten password.
+  const uname = String((req.body || {}).username || '').trim();
+  const { password } = req.body || {};
   if (!adminState.registered) return res.status(403).json({ ok: false, error: 'No administrator registered.' });
-  if (username !== adminState.user.username || !verifyPassword(password, adminState.user)) {
+  const knownUser = uname === adminState.user.username;
+  if (!knownUser || !verifyPassword(password, adminState.user)) {
+    // Say which half failed, so the journal shows whether to hunt for a typo in
+    // the name or the password. The password itself is never logged.
+    console.log(`[admin] failed sign-in from ${req.ip || '?'} — username ${JSON.stringify(uname)} `
+      + `${knownUser ? 'matches an account, so the password is wrong' : 'does not match any account'}`);
     return res.status(401).json({ ok: false, error: 'Invalid credentials.' });
   }
   const token = newToken();
