@@ -318,6 +318,28 @@ to 600× stays numerically stable (≈ 18 000× real time on one core).
 
 Provided as-is for operator training and education.
 
+## Updating
+
+The simulator checks GitHub for a newer commit and can update itself. From a
+terminal in the install directory (`/opt/turbine-coal-simulator` by default):
+
+```bash
+node tools/update.js status           # compare the installed build with GitHub
+node tools/update.js apply            # pull and reinstall (runs scripts/update.sh)
+node tools/update.js apply --restart   # ...and restart the systemd service
+sudo systemctl restart turbine-coal-simulator
+```
+
+`status` is read-only and exits with code 1 when an update is available, so it
+can be driven from cron. `apply` is the same operation the **Update Now** button
+on the hidden admin page spawns: it fetches, resets the working copy to
+`origin/main`, reinstalls dependencies and rebuilds the vendored browser
+libraries — local edits to tracked files are discarded by design, so the install
+always matches the repository.
+
+Environment overrides: `GIT_BRANCH` (default `main`), `UPDATE_SERVICE`
+(default `turbine-coal-simulator`), `APP_DIR`.
+
 ## Testing
 
 Four automated suites ship with the simulator. Run them all and regenerate the

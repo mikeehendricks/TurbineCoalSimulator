@@ -19,7 +19,16 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SUITES = [
-  { key: 'sim', file: 'tools/test-sim.js', title: 'Physics & plant behaviour', slow: true },
+  {
+    key: 'sim',
+    file: 'tools/test-sim.js',
+    title: 'Plant model & physics',
+    slow: true,
+    // Each scenario gets its own process: the model is only marginally damped,
+    // so plants created after the first one in a Node process follow a
+    // different trajectory (V8 optimises the hot loops in between).
+    groups: ['props', 'startup', 'base', 'trip', 'fans', 'leak', 'faults', 'ramps', 'numeric'],
+  },
   { key: 'api', file: 'tools/test-api.js', title: 'API, protocol & resilience' },
   { key: 'ui', file: 'tools/test-ui.js', title: 'Usability & front end' },
   { key: 'sec', file: 'tools/test-security.js', title: 'Security & vulnerabilities' },
@@ -30,10 +39,13 @@ const quick = args.includes('--quick');
 const only = (args.find((a) => a.startsWith('--only=')) || '').split('=')[1];
 const chosen = only ? SUITES.filter((x) => x.key === only) : SUITES.filter((x) => !(quick && x.slow));
 
-function runOne(suite) {
+function runOne(suite, group = '') {
   return new Promise((resolve) => {
     const t0 = Date.now();
-    const child = spawn(process.execPath, [suite.file], { cwd: ROOT, env: process.env });
+    const child = spawn(process.execPath, [suite.file], {
+      cwd: ROOT,
+      env: { ...process.env, ...(group ? { TCSIM_GROUP: group } : {}) },
+    });
     let out = '', err = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { err += d; process.stderr.write(d); });
@@ -51,7 +63,7 @@ function runOne(suite) {
         resolve({ ...suite, ok: false, error: `no result block (exit ${code})`, tail: err.split('\n').slice(-6).join('\n'), wallMs: Date.now() - t0 });
         return;
       }
-      resolve({ ...suite, ok: true, wallMs: Date.now() - t0, result: JSON.parse(m[1]) });
+      resolve({ ...suite, group, ok: true, wallMs: Date.now() - t0, result: JSON.parse(m[1]) });
     });
   });
 }
@@ -59,6 +71,32 @@ function runOne(suite) {
 (async () => {
   const runs = [];
   const reuse = (args.find((a) => a.startsWith('--reuse=')) || '').split('=')[1];
+  async function runSuite(suite) {
+    if (!suite.groups) return runOne(suite);
+    process.stderr.write(`\n── ${suite.title} (${suite.groups.length} isolated scenario processes) ────────\n`);
+    const out = [];
+    const queue = suite.groups.slice();
+    await Promise.all(Array.from({ length: Math.min(3, queue.length) }, async () => {
+      while (queue.length) out.push(await runOne(suite, queue.shift()));
+    }));
+    const tests = out.filter((r) => r.ok).flatMap((r) => r.result.tests);
+    const broken = out.filter((r) => !r.ok);
+    return {
+      ...suite,
+      ok: broken.length === 0,
+      wallMs: Math.max(...out.map((r) => r.wallMs)),
+      result: {
+        suite: suite.title,
+        category: 'physics',
+        durationMs: out.reduce((a, r) => a + (r.ok ? r.result.durationMs : r.wallMs), 0),
+        tests,
+        passed: tests.filter((t) => t.status === 'pass').length,
+        failed: tests.filter((t) => t.status === 'fail').length,
+        notes: tests.filter((t) => t.status === 'note').length,
+      },
+    };
+  }
+
   for (const s of chosen) {
     const cached = reuse && fs.existsSync(path.join('/tmp/sm', `${s.key}-result.json`))
       ? fs.readFileSync(path.join('/tmp/sm', `${s.key}-result.json`), 'utf8') : null;
@@ -68,7 +106,7 @@ function runOne(suite) {
       continue;
     }
     process.stderr.write(`\n── ${s.title} ──────────────────────────────\n`);
-    runs.push(await runOne(s));
+    runs.push(await runSuite(s));
   }
   const merged = {
     generatedAt: new Date().toISOString(),
