@@ -14,6 +14,20 @@ const esc = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</
    as part of this exercise — this is the part an executive reads first. */
 const FIXED = [
   {
+    area: 'Operator interface',
+    defect: 'The guided-tutorial panel is absolutely positioned in the same container as the bottom operator bar. On narrow or short windows it grew over the bar, so clicks on SOUND, TUTORIAL and the volume slider never reached the buttons — the controls looked fine and did nothing.',
+    effect: 'Sound could not be switched on and the tutorial could not be opened or closed from the bottom bar on any window below roughly 1 100 px wide.',
+    fix: 'The bottom bar is raised to z-index 20 and the tutorial panel is height-capped, so the controls are hit-testable at every size from 800×600 to 1920×1080.',
+    found: 'Usability suite — operator-control reachability (new check)',
+  },
+  {
+    area: 'Emissions model',
+    defect: 'Outlet dust was calibrated so the unit emitted about 59 mg/Nm³ at continuous rating against its own 50 mg/Nm³ stack limit, with the ESP fields already energised and the FGD in service. The plant could not meet its own limit at any load above about 430 MW, and no operator action could clear the alarm.',
+    effect: 'The DUST_HI alarm latched on every normal full-load run, and any automatic or guided loading strategy stalled at part load waiting for an alarm that could never clear.',
+    fix: 'The emission constant is recalibrated to about 28 mg/Nm³ at full load. De-energising the ESP still drives dust to roughly 3 850 mg/Nm³ and latches the alarm, so the training signal is unchanged.',
+    found: 'Autopilot trials — the unit held at 450 MW on a dust alarm with all emissions plant running',
+  },
+  {
     area: 'Start-up sequencer',
     defect: 'Superheater attemperator capacity was sized off 5 % of the total main-steam flow (~46 t/h per boiler instead of the design 90 t/h), so the stage-1 spray saturated and the final steam temperature sat 10–15 K above design.',
     effect: 'Wrong steam temperature training value; contributed ~1 000 kJ/kWh to the heat rate.',
@@ -230,7 +244,7 @@ ${sc.total} individual checks were executed in ${(merged.suites.reduce((a, s) =>
 steady state, takes every one of the 34 fault scenarios, and shuts the unit down to a boxed-up cold state
 without a spurious trip. Steam properties were verified against IAPWS references, the heat-rate and
 boiler-efficiency figures are in the right band at rated load, and the model is deterministic.</p>
-<p>Eleven defects were found and fixed during the programme (section 5), the most serious being three
+<p>Thirteen defects were found and fixed during the programme (section 5), the most serious being three
 control-loop bugs that prevented a cold start from completing, one that made a normal shutdown latch a
 false turbine trip, and one that made the whole model irreproducible.</p>
 <p><b>One high-severity issue remains open.</b> The boiler-follow and drum-level loops are only marginally
@@ -272,11 +286,12 @@ ${fixedRows}
 <ul>
 <li><b>Reproducibility across plants in one process.</b> A single plant in one process is reproducible, but
 creating several plants inside the same Node process still gives different trajectories, because V8's
-optimising compiler emits slightly different floating-point code once a function is hot. Test scenarios must
-therefore each run in their own process — the physics suite is being split accordingly.</li>
+optimising compiler emits slightly different floating-point code once a function is hot. The physics suite
+now runs each scenario group in its own child process, so this no longer affects the results — it only
+means a single process cannot be used to compare two plants sample by sample.</li>
 <li><b>Load-ramp envelope.</b> Ramps above ~12 MW/min (1.8 %/min) trip the boiler on drum level HHH during the swell transient. Real units ramp at 1–3 %/min with runback active, so this only affects emergency-rate training; the qualified envelope in this build is 1–12 MW/min.</li>
 <li><b>Part-load heat rate.</b> Rated-load heat rate is within about 5 % of the 9 500 kJ/kWh design; at 500 MW the model runs 15–25 % high because the part-load boiler loss fit is optimistic. Acceptable for operational training, not for efficiency benchmarking.</li>
-<li><b>Standing process alarms at high load.</b> Furnace-exit gas temperature, stack temperature and dust/NO<sub>x</sub> emissions sit at their alarm limits above ~500 MW. They are genuine process alarms for this boiler design, but they should be re-tuned if the simulator is used for emissions training.</li>
+<li><b>Standing process alarms at high load.</b> Furnace-exit gas temperature, stack temperature and NO<sub>x</sub> sit at their alarm limits above ~500 MW, and the reheater raises a reheat-steam-temperature HIGH alarm intermittently while loading through 300–500 MW. Dust emission was in this category and has been recalibrated; the others are genuine process alarms for this boiler design, but they should be re-tuned if the simulator is used for emissions or efficiency training.</li>
 <li><b>Control API is unauthenticated</b> so that the HMI needs no login. Anyone who can reach the port can start, trip or fault the unit.</li>
 <li><b>Administration cookie is not flagged <code>Secure</code></b> because the installer defaults to plain HTTP.</li>
 <li><b>Browser state.</b> Tutorial completion and sound preferences are stored per browser (localStorage); clearing site data resets them.</li>
