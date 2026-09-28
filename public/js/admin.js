@@ -67,7 +67,18 @@ async function login() {
     });
     msg($('#authMsg'), '', 'ok');
     await enterConsole();
-  } catch (e) { msg($('#authMsg'), e.message, 'err'); }
+  } catch (e) {
+    // Registration is one-time, so a forgotten password would otherwise lock
+    // the console for good — point the operator at the recovery path.
+    const locked = /invalid credentials/i.test(e.message || '');
+    // msg() writes textContent, so the hint is plain text — no markup here.
+    const hint = locked
+      ? ' If you have forgotten the password, clear the account on the server with ' +
+        '"node tools/admin-reset.js --confirm" (stop the service first), restart it, ' +
+        'and register again.'
+      : '';
+    msg($('#authMsg'), (e.message || 'Sign-in failed.') + hint, 'err');
+  }
 }
 
 async function logout() {

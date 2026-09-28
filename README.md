@@ -348,6 +348,28 @@ always matches the repository.
 Environment overrides: `GIT_BRANCH` (default `main`), `UPDATE_SERVICE`
 (default `turbine-coal-simulator`), `APP_DIR`.
 
+### Locked out of the admin console?
+
+Registration is **one-time**: once an administrator exists, `/admin` only ever
+shows the sign-in form. That is deliberate — but it also means a forgotten
+password, or an account created by an automated test or screenshot run, locks
+the console for good. The recovery path is:
+
+```bash
+sudo systemctl stop turbine-coal-simulator     # the server caches the admin state in memory
+node tools/admin-reset.js                      # dry run: shows the account and what it would do
+node tools/admin-reset.js --confirm            # backs up data/admin.json and clears the account
+sudo systemctl start turbine-coal-simulator
+```
+
+Then open `/admin` and register again. The tool writes a timestamped backup
+(`data/admin.json.bak-<timestamp>`) before clearing, and the sign-in form now
+prints this recovery hint after a failed attempt.
+
+**Stop the server before resetting.** A running server keeps the admin state in
+memory and writes it back on the next session change, which would undo the
+reset.
+
 ### Authenticating git (maintainers)
 
 Pushing needs a fine-grained personal access token with **Contents: Read and
