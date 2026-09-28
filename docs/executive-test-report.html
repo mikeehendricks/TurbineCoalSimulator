@@ -37,7 +37,7 @@
   @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}</style></head><body><div class="wrap">
 
 <h1>Executive test report</h1>
-<div class="sub">Turbine &amp; coal-fired power plant simulator · version 1.0.0 (67e1747) · Mon, 28 Sep 2026 04:27:12 GMT</div>
+<div class="sub">Turbine &amp; coal-fired power plant simulator · version 1.0.0 (de31380) · Mon, 28 Sep 2026 09:35:01 GMT</div>
 
 <div class="verdict">
   <div class="v">PASS WITH MINOR FINDINGS</div>
@@ -54,7 +54,7 @@
 <h2>1. Executive summary</h2>
 <p>The simulator was put through a four-part test programme covering <b>physics and plant behaviour</b>,
 <b>API and protocol robustness</b>, <b>usability and the front end</b>, and <b>security and vulnerability</b>.
-25 individual checks were executed in 832 s of wall time.</p>
+25 individual checks were executed in 877 s of wall time.</p>
 <p>The build is <b>pass with minor findings</b>: 2 low/medium findings raised. The engine completes a full cold start-up
 (light-off → purge → pressure raising → turbine roll → synchronisation → loading to full output), holds
 steady state, takes every one of the 34 fault scenarios, and shuts the unit down to a boxed-up cold state
@@ -83,31 +83,31 @@ choices, not code defects, and are covered by the recommendations in section 7.<
 (<code>node tools/run-tests.js</code>); the report is regenerated into <code>docs/executive-test-report.html</code>.</p>
 
 <h2>3. Results by suite</h2>
-<h3>Plant model &amp; physics <span class="detail">— 21/23 passed, 2121.3 s</span></h3>
+<h3>Plant model &amp; physics <span class="detail">— 21/23 passed, 3243.8 s</span></h3>
     <table><tr><th style="width:1%">Result</th><th style="width:1%">Severity</th><th>Check</th><th>Evidence</th><th style="width:1%">Time</th></tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>all 34 faults inject, run and clear without breaking the model</td>
         <td class="detail">34 faults injected and cleared cleanly</td>
-        <td class="n detail">140127 ms</td>
+        <td class="n detail">240342 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>no NaN / Infinity anywhere in a full start → load → trip snapshot</td>
         <td class="detail">2000 min simulated, snapshot numerically clean</td>
-        <td class="n detail">242832 ms</td>
+        <td class="n detail">278035 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>loss of all ID fans while fired produces a master fuel trip</td>
         <td class="detail">MFT: All ID fans tripped (peak furnace draft 1.95 kPa)</td>
-        <td class="n detail">69932 ms</td>
+        <td class="n detail">141468 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>loss of condenser vacuum trips the turbine</td>
         <td class="detail">turbine trip: Condenser vacuum low</td>
-        <td class="n detail">82129 ms</td>
+        <td class="n detail">171812 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -119,13 +119,13 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev high">high</span></td>
         <td>normal shutdown runs to SHUTDOWN_COLD through every phase</td>
         <td class="detail">UNLOADING → COASTDOWN → TURNING_GEAR → POST_PURGE → SHUTDOWN_COLD · breaker open, 0 rpm</td>
-        <td class="n detail">34217 ms</td>
+        <td class="n detail">72636 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>boiler tube leak is progressive and detectable by the operator</td>
         <td class="detail">leak 90.0 %, 30.6 t/h, fw−ms -12 t/h (was -33)</td>
-        <td class="n detail">228636 ms</td>
+        <td class="n detail">424819 ms</td>
       </tr><tr>
         <td class="n"><span class="pill note">NOTE</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -161,7 +161,7 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>cold start-up runs the whole sequence and synchronises</td>
         <td class="detail">synchronised at 270 min, 22 MW, 3000 rpm</td>
-        <td class="n detail">50750 ms</td>
+        <td class="n detail">79566 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -173,31 +173,31 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>drum thermal-stress envelope respected during pressure raising</td>
         <td class="detail">max ΔT 17.4 K, max rate 116 K/h (above 100 °C)</td>
-        <td class="n detail">50344 ms</td>
+        <td class="n detail">102781 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>manual MFT trips the boilers and turbine; reset clears it</td>
         <td class="detail">tripped and reset at 338 min, all fuel off within 2 min</td>
-        <td class="n detail">81456 ms</td>
+        <td class="n detail">141497 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>manual turbine trip opens the breaker and unloads the machine</td>
         <td class="detail">tripped from 0 MW — breaker open, speed falling</td>
-        <td class="n detail">76543 ms</td>
+        <td class="n detail">160179 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>unit loads to 500 MW and holds steady for 60 simulated minutes</td>
         <td class="detail">492 MW gross / 441 MW net · drum ±14 mm · MS 537–539 °C · vac 8.9 kPa · HR 11455 kJ/kWh</td>
-        <td class="n detail">253527 ms</td>
+        <td class="n detail">508717 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>steady-state boiler performance is physically plausible at 500 MW</td>
         <td class="detail">eff 92.0 % · stack 195 °C · O₂ 2.4 % · FEGT 1257 °C</td>
-        <td class="n detail">1 ms</td>
+        <td class="n detail">0 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -209,36 +209,36 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>load ramps up to 12 MW/min (1.8 %/min) complete without a trip</td>
         <td class="detail">6 MW/min: ok · 12 MW/min: ok</td>
-        <td class="n detail">146397 ms</td>
+        <td class="n detail">214211 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>sampled faults produce the annunciation an operator would expect</td>
         <td class="detail">6/6 sampled faults annunciate correctly</td>
-        <td class="n detail">75735 ms</td>
+        <td class="n detail">109144 ms</td>
       </tr><tr>
         <td class="n"><span class="pill fail">FAIL</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>simulation is deterministic for identical inputs</td>
         <td class="detail">two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]"</td>
-        <td class="n detail">386054 ms</td>
+        <td class="n detail">392630 ms</td>
       </tr><tr>
         <td class="n"><span class="pill fail">FAIL</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>engine keeps up with real time at 600× acceleration</td>
-        <td class="detail">438.2 ms per 200 ms tick — cannot keep up in real time</td>
-        <td class="n detail">145613 ms</td>
+        <td class="detail">439.7 ms per 200 ms tick — cannot keep up in real time</td>
+        <td class="n detail">149360 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>snapshot is small enough for a 5 Hz WebSocket feed</td>
-        <td class="detail">34.3 KB full / 10.9 KB light at 5 Hz</td>
-        <td class="n detail">56923 ms</td>
+        <td class="detail">34.0 KB full / 10.7 KB light at 5 Hz</td>
+        <td class="n detail">56381 ms</td>
       </tr></table>
 
 <h2>4. Findings</h2>
 <h3>4.1 Open findings</h3>
-<table><tr><th style="width:1%">Severity</th><th>Finding</th><th>Detail</th></tr><tr><td class="n"><span class="sev info">info</span></td><td>simulation is deterministic for identical inputs</td><td class="detail">two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]"</td></tr><tr><td class="n"><span class="sev info">info</span></td><td>engine keeps up with real time at 600× acceleration</td><td class="detail">438.2 ms per 200 ms tick — cannot keep up in real time</td></tr></table>
+<table><tr><th style="width:1%">Severity</th><th>Finding</th><th>Detail</th></tr><tr><td class="n"><span class="sev info">info</span></td><td>simulation is deterministic for identical inputs</td><td class="detail">two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]"</td></tr><tr><td class="n"><span class="sev info">info</span></td><td>engine keeps up with real time at 600× acceleration</td><td class="detail">439.7 ms per 200 ms tick — cannot keep up in real time</td></tr></table>
 <h3>4.2 Observations (accepted, not defects)</h3>
 <table><tr><th style="width:1%">Severity</th><th>Observation</th><th>Detail</th></tr><tr><td class="n"><span class="sev high">high</span></td><td>Part-load setpoints settle below the target</td><td class="detail">Given a full-load target the unit runs up to 497 MW with the main steam held at 538 °C. Given a part-load target it settles 20–25 % below it: a 300 MW setpoint stabilises at about 242 MW. The sliding-pressure schedule then fixes the header pressure at ~12.6 MPa, and the turbine model converts the resulting steam flow into less work per kilogram than the design (the part-load heat rate is ~18 % abo</td></tr><tr><td class="n"><span class="sev medium">medium</span></td><td>Load ramps above ~12 MW/min trip the unit on high drum level</td><td class="detail">At 20 MW/min (3 %/min — an emergency rate a real unit would take with runback active) the drum level controller cannot hold the swell and the boiler trips on level HHH at ~140 MW. The qualified envelope is 1–12 MW/min; operators should use ≤ 6 MW/min.</td></tr></table>
 
@@ -274,7 +274,7 @@ node tools/test-api.js          # API only      (~5 s)
 node tools/test-ui.js           # usability     (~4 min, needs the server on :8080)
 node tools/test-security.js     # security      (~3 s)
 node tools/loadtest.js --target=660 --ramp=4    # load-ramp harness</code></pre>
-<p class="detail">Environment: Ubuntu Linux, Node.js 20.20.2, Express 4.x, ws 8.x; headless Chrome for the usability suite.</p>
+<p class="detail">Environment: Ubuntu Linux, Node.js 20.20.2, Express 4.22.3, ws 8.21.3; headless Chrome for the usability suite.</p>
 
-<div class="foot">Generated 2026-09-28T04:27:12.212Z by tools/report.js from docs/test-results.json · turbine-coal-simulator 1.0.0</div>
+<div class="foot">Generated 2026-09-28T09:35:01.191Z by tools/report.js from docs/test-results.json · turbine-coal-simulator 1.0.0</div>
 </div></body></html>

@@ -25,6 +25,35 @@ const s = new Suite('Usability & front-end', 'usability');
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Bring the unit back to SHUTDOWN COLD so the tutorial tests start from the
+ * state they are written for. Runs at 600x so a full coast-down takes seconds.
+ */
+async function ensureShutdownCold(page) {
+  const mode = async () => page.evaluate(() => {
+    const el = document.getElementById('mode');
+    return el ? el.textContent.trim().toUpperCase().replace(/\s+/g, '_') : '';
+  });
+  const send = async (cmd, value) => {
+    await page.evaluate(async (c, v) => {
+      await fetch('/api/command', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cmd: c, value: v }),
+      });
+    }, cmd, value);
+  };
+  if (await mode() === 'SHUTDOWN_COLD') return;
+  await send('speedFactor', 600);
+  await send('shutdown', true);
+  for (let i = 0; i < 60; i++) {
+    await wait(2000);
+    if (await mode() === 'SHUTDOWN_COLD') return;
+    if (i === 20) await send('resetMFT', true);   // clear a latched trip so the unit can restart
+  }
+  console.log('  ! could not bring the unit back to SHUTDOWN COLD — tutorial tests will fail');
+}
+
+
 (async () => {
   const browser = await puppeteer.launch({
     headless: 'new',
@@ -93,6 +122,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   }, { severity: 'high' });
 
   /* ---------------- guided tutorial ---------------- */
+  // The suite runs against whatever simulator is on BASE, which may already be
+  // on load from an earlier session: the tutorial only offers itself from
+  // SHUTDOWN COLD, so bring the unit back to cold first. Without this the seven
+  // tutorial tests fail for the wrong reason — a warm unit, not a broken UI.
+  await ensureShutdownCold(page);
+
   await s.test('the guided start-up tutorial offers itself on first visit', async () => {
     const st = await page.evaluate(() => {
       const el = document.getElementById('tutor');
@@ -197,6 +232,66 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
     s.assert(st.rows >= 6, `summary shows only ${st.rows} rows`);
     return { detail: `${st.rows}-row operating summary shown` };
   });
+
+  /* ---------------- autopilot, build stamp, control reachability ---------------- */
+  await s.test('the autopilot takes the unit the rest of the way to load hands-off', async () => {
+    const before = await page.evaluate(() => window.__tcsim.state.plant.grossMW || 0);
+    await page.evaluate(() => { const a = window.__tcsim.autopilot; if (!a.active) a.enable(); });
+    let peak = before; let last = null;
+    for (let i = 0; i < 24; i++) {
+      await wait(5000);
+      last = await page.evaluate(() => ({
+        st: window.__tcsim.autopilot.state,
+        note: window.__tcsim.autopilot.note,
+        mw: window.__tcsim.state.plant.grossMW || 0,
+        active: window.__tcsim.autopilot.active,
+      }));
+      peak = Math.max(peak, last.mw);
+      if (!last.active || last.st === 'ON_LOAD') break;
+    }
+    await page.evaluate(() => window.__tcsim.autopilot.disable());
+    s.assert(peak > before + 40 || (last && last.st === 'ON_LOAD'),
+      `autopilot did not raise load: ${before.toFixed(0)} → ${peak.toFixed(0)} MW (state ${last && last.st})`);
+    return { detail: `${before.toFixed(0)} → ${peak.toFixed(0)} MW, state ${last && last.st} — ${last && last.note}` };
+  }, { severity: 'medium' });
+
+  await s.test('the bottom bar shows the build version and source commit', async () => {
+    const txt = (await page.$eval('#ver', (e) => e.textContent)).trim();
+    s.assert(/^v\d+\.\d+\.\d+/.test(txt), `build stamp is not a version: "${txt}"`);
+    s.assert(/[0-9a-f]{7,}/.test(txt), 'no source commit in the build stamp');
+    return { detail: txt };
+  }, { severity: 'low' });
+
+  await s.test('operator controls stay clickable with the tutorial panel open', async () => {
+    // Regression: the tutorial panel is absolutely positioned in the same
+    // container as the bottom bar and used to paint over SOUND, TUTORIAL and
+    // the volume slider on narrow/short windows, so clicks never landed.
+    await page.evaluate(() => { if (!window.__tcsim.tutorial.running) window.__tcsim.tutorial.start(0); });
+    await wait(1200);
+    const results = [];
+    for (const [w, h] of [[800, 600], [1024, 768], [1280, 800], [1600, 900]]) {
+      await page.setViewport({ width: w, height: h });
+      await wait(900);
+      const blocked = await page.evaluate(() => {
+        const out = [];
+        for (const sel of ['#btnSound', '#btnTutorial', '#btnAuto', '#vol', '#btnStart']) {
+          const el = document.querySelector(sel);
+          if (!el) { out.push(sel + '(missing)'); continue; }
+          const b = el.getBoundingClientRect();
+          const at = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+          if (!(at && (el === at || el.contains(at)))) out.push(sel);
+        }
+        return out;
+      });
+      results.push({ size: `${w}x${h}`, blocked });
+    }
+    await page.setViewport({ width: 1600, height: 900 });
+    await page.evaluate(() => { if (window.__tcsim.tutorial.running) window.__tcsim.tutorial.stop(); });
+    const bad = results.filter((r) => r.blocked.length);
+    s.assert(bad.length === 0,
+      `controls covered at ${bad.map((r) => r.size + ':' + r.blocked.join('/')).join(' ')}`);
+    return { detail: results.map((r) => `${r.size} ${r.blocked.length ? 'BLOCKED ' + r.blocked.join('/') : 'ok'}`).join(' · ') };
+  }, { severity: 'high' });
 
   /* ---------------- sound ---------------- */
   await s.test('sound is off by default and starts on the operator\'s click', async () => {

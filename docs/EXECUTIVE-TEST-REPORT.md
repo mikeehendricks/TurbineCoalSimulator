@@ -2,7 +2,7 @@
 
 **Verdict: PASS WITH MINOR FINDINGS** — 2 low/medium findings raised.
 21/25 checks passed · 2 observations · 11 defects found and fixed.
-Generated Mon, 28 Sep 2026 04:27:12 GMT from `docs/test-results.json`.
+Generated Mon, 28 Sep 2026 09:35:01 GMT from `docs/test-results.json`.
 
 ## 1. Summary
 
@@ -18,7 +18,7 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 
 | Suite | Passed | Failed | Notes | Time |
 |---|---:|---:|---:|---:|
-| Plant model & physics | 21 | 2 | 2 | 2121.3 s |
+| Plant model & physics | 21 | 2 | 2 | 3243.8 s |
 
 ### Plant model & physics
 
@@ -47,8 +47,8 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | info | load ramps up to 12 MW/min (1.8 %/min) complete without a trip | 6 MW/min: ok · 12 MW/min: ok |
 | PASS | info | sampled faults produce the annunciation an operator would expect | 6/6 sampled faults annunciate correctly |
 | FAIL | info | simulation is deterministic for identical inputs | two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]" |
-| FAIL | info | engine keeps up with real time at 600× acceleration | 438.2 ms per 200 ms tick — cannot keep up in real time |
-| PASS | info | snapshot is small enough for a 5 Hz WebSocket feed | 34.3 KB full / 10.9 KB light at 5 Hz |
+| FAIL | info | engine keeps up with real time at 600× acceleration | 439.7 ms per 200 ms tick — cannot keep up in real time |
+| PASS | info | snapshot is small enough for a 5 Hz WebSocket feed | 34.0 KB full / 10.7 KB light at 5 Hz |
 
 ## 3. Defects found and fixed
 

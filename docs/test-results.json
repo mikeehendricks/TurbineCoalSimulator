@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-28T04:27:12.212Z",
+  "generatedAt": "2026-09-28T09:35:01.191Z",
   "version": "1.0.0",
-  "head": "67e1747",
+  "head": "de31380",
   "suites": [
     {
       "key": "sim",
@@ -20,11 +20,11 @@
         "numeric"
       ],
       "ok": true,
-      "wallMs": 831507,
+      "wallMs": 876506,
       "result": {
         "suite": "Plant model & physics",
         "category": "physics",
-        "durationMs": 2121345,
+        "durationMs": 3243812,
         "tests": [
           {
             "name": "steam tables: saturation temperature matches IAPWS within 1.5 K",
@@ -56,7 +56,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "synchronised at 270 min, 22 MW, 3000 rpm",
-            "ms": 50750
+            "ms": 79566
           },
           {
             "name": "start-up timings follow a realistic cold-start curve",
@@ -72,7 +72,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "max ΔT 17.4 K, max rate 116 K/h (above 100 °C)",
-            "ms": 50344
+            "ms": 102781
           },
           {
             "name": "manual MFT trips the boilers and turbine; reset clears it",
@@ -80,7 +80,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "tripped and reset at 338 min, all fuel off within 2 min",
-            "ms": 81456
+            "ms": 141497
           },
           {
             "name": "manual turbine trip opens the breaker and unloads the machine",
@@ -88,7 +88,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "tripped from 0 MW — breaker open, speed falling",
-            "ms": 76543
+            "ms": 160179
           },
           {
             "name": "loss of all ID fans while fired produces a master fuel trip",
@@ -96,7 +96,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "MFT: All ID fans tripped (peak furnace draft 1.95 kPa)",
-            "ms": 69932
+            "ms": 141468
           },
           {
             "name": "loss of condenser vacuum trips the turbine",
@@ -104,7 +104,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "turbine trip: Condenser vacuum low",
-            "ms": 82129
+            "ms": 171812
           },
           {
             "name": "unit loads to 500 MW and holds steady for 60 simulated minutes",
@@ -112,7 +112,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "492 MW gross / 441 MW net · drum ±14 mm · MS 537–539 °C · vac 8.9 kPa · HR 11455 kJ/kWh",
-            "ms": 253527
+            "ms": 508717
           },
           {
             "name": "steady-state boiler performance is physically plausible at 500 MW",
@@ -120,7 +120,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "eff 92.0 % · stack 195 °C · O₂ 2.4 % · FEGT 1257 °C",
-            "ms": 1
+            "ms": 0
           },
           {
             "name": "the two boilers stay balanced on the common header",
@@ -144,7 +144,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "UNLOADING → COASTDOWN → TURNING_GEAR → POST_PURGE → SHUTDOWN_COLD · breaker open, 0 rpm",
-            "ms": 34217
+            "ms": 72636
           },
           {
             "name": "boiler tube leak is progressive and detectable by the operator",
@@ -152,7 +152,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "leak 90.0 %, 30.6 t/h, fw−ms -12 t/h (was -33)",
-            "ms": 228636
+            "ms": 424819
           },
           {
             "name": "load ramps up to 12 MW/min (1.8 %/min) complete without a trip",
@@ -160,7 +160,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "6 MW/min: ok · 12 MW/min: ok",
-            "ms": 146397
+            "ms": 214211
           },
           {
             "name": "Part-load setpoints settle below the target",
@@ -184,7 +184,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "34 faults injected and cleared cleanly",
-            "ms": 140127
+            "ms": 240342
           },
           {
             "name": "sampled faults produce the annunciation an operator would expect",
@@ -192,7 +192,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "6/6 sampled faults annunciate correctly",
-            "ms": 75735
+            "ms": 109144
           },
           {
             "name": "no NaN / Infinity anywhere in a full start → load → trip snapshot",
@@ -200,7 +200,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "2000 min simulated, snapshot numerically clean",
-            "ms": 242832
+            "ms": 278035
           },
           {
             "name": "simulation is deterministic for identical inputs",
@@ -208,23 +208,23 @@
             "severity": "info",
             "status": "fail",
             "detail": "two identical runs diverged: \"[\\\"ONLINE\\\",\\\"258.464538\\\",\\\"12.633808\\\",\\\"3000.4332\\\"]\" != \"[\\\"ONLINE\\\",\\\"239.530202\\\",\\\"12.636477\\\",\\\"3000.4332\\\"]\"",
-            "ms": 386054
+            "ms": 392630
           },
           {
             "name": "engine keeps up with real time at 600× acceleration",
             "category": "physics",
             "severity": "info",
             "status": "fail",
-            "detail": "438.2 ms per 200 ms tick — cannot keep up in real time",
-            "ms": 145613
+            "detail": "439.7 ms per 200 ms tick — cannot keep up in real time",
+            "ms": 149360
           },
           {
             "name": "snapshot is small enough for a 5 Hz WebSocket feed",
             "category": "physics",
             "severity": "info",
             "status": "pass",
-            "detail": "34.3 KB full / 10.9 KB light at 5 Hz",
-            "ms": 56923
+            "detail": "34.0 KB full / 10.7 KB light at 5 Hz",
+            "ms": 56381
           }
         ],
         "passed": 21,
