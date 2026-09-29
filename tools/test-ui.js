@@ -614,6 +614,13 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
       events: (window.__tcsim.state.events || []).length,
     }));
 
+    // Drop the time acceleration before measuring. At 600x the unit covers
+    // 25 simulated minutes in the 2.5 s this test waits, which is long enough
+    // for an unrelated protection to latch and turn a working reset into a
+    // failure that has nothing to do with the button.
+    await page.evaluate(() => window.__tcsim.cmd('speedFactor', 1));
+    await wait(800);
+
     // First click only arms it — a destructive reset must not be one click.
     await page.click('#btnResetPlant');
     await wait(500);
@@ -623,14 +630,18 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     s.assert(armedMode === before.mode, `the arming click changed the plant (${before.mode} → ${armedMode})`);
 
     await page.click('#btnResetPlant');
-    await wait(2500);
-    const after = await page.evaluate(() => ({
-      mode: window.__tcsim.state.meta.mode,
-      mw: +(window.__tcsim.state.plant.grossMW || 0).toFixed(1),
-      t: +(window.__tcsim.state.meta.simTime / 60).toFixed(0),
-      events: (window.__tcsim.state.events || []).length,
-      faults: (window.__tcsim.state.faults || []).length,
-    }));
+    let after = null;
+    for (let i = 0; i < 15; i++) {
+      await wait(400);
+      after = await page.evaluate(() => ({
+        mode: window.__tcsim.state.meta.mode,
+        mw: +(window.__tcsim.state.plant.grossMW || 0).toFixed(1),
+        t: +(window.__tcsim.state.meta.simTime / 60).toFixed(0),
+        events: (window.__tcsim.state.events || []).length,
+        faults: (window.__tcsim.state.faults || []).length,
+      }));
+      if (after.mode === 'SHUTDOWN_COLD') break;
+    }
     s.assert(after.mode === 'SHUTDOWN_COLD', `unit is ${after.mode}, not SHUTDOWN COLD after the reset`);
     s.assert(after.mw < 1, `unit still making ${after.mw} MW after the reset`);
     return { detail: `${before.mw} MW / ${before.events} events → ${after.mode}, ${after.mw} MW, clock ${after.t} min, ${after.events} events` };
