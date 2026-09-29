@@ -15,18 +15,39 @@
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
     font-family:var(--mono);font-size:13px;overflow:hidden}
-  #app{display:grid;grid-template-rows:auto 1fr;height:100%}
+  /* minmax(0,1fr) rather than the implicit auto column: with an auto column the
+     grid is sized to its content, so a header that cannot fit simply widens the
+     whole layout past the edge of the window instead of being reined in — which
+     pushed the build stamp, and everything else on the right, out of sight. */
+  #app{display:grid;grid-template-rows:auto 1fr;grid-template-columns:minmax(0,1fr);height:100%}
 
   header{display:flex;gap:14px;align-items:center;padding:8px 14px;
     background:linear-gradient(180deg,#0f1b28,#0b131d);border-bottom:1px solid var(--line)}
-  header h1{font-size:15px;margin:0;letter-spacing:.5px;color:#e8f2fb}
+  /* The title is the one thing that can give way: everything else has to stay
+     put, above all the build stamp, which is the last item and so is the first
+     thing to be pushed off the edge when the header runs out of room. */
+  header h1{font-size:15px;margin:0;letter-spacing:.5px;color:#e8f2fb;
+    min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   header h1 small{color:var(--dim);font-weight:400;font-size:11px;margin-left:8px}
   .kv{display:flex;flex-direction:column;line-height:1.15;min-width:74px}
   .kv b{font-size:15px;color:#fff;font-weight:600}
   .kv span{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
-  .spacer{flex:1}
+  .spacer{flex:1;min-width:0}
+  /* The build stamp. It has to be findable: the header and the bottom bar only
+     span the 3D view, not the window, so anything in them sits ~340 px short of
+     the right-hand edge. This one is the last item in the header, which does
+     span the window, and it is bright enough to read at a glance. */
+  .buildstamp{font-size:11.5px;color:#9fb3c8;background:#0d1826;border:1px solid var(--line);
+    border-radius:4px;padding:3px 7px;white-space:nowrap;letter-spacing:.2px;flex:none}
+  @media (max-width:1240px){
+    header{gap:9px}
+    .kv{min-width:62px}
+  }
+  /* The plant name always gets the room it needs; the long subtitle is the
+     first thing to go, well before the title or the build stamp is squeezed. */
+  @media (max-width:1800px){ header h1 small{display:none} }
 
-  main{display:grid;grid-template-columns:1fr 340px;height:100%;min-height:0}
+  main{display:grid;grid-template-columns:minmax(0,1fr) 340px;height:100%;min-height:0}
   #view{position:relative;min-height:0;background:#04070c}
   canvas#gl{position:absolute;inset:0;width:100%;height:100%;display:block}
 
@@ -175,9 +196,7 @@
 <body>
 <div id="app">
   <header>
-    <h1>TWIN-BOILER COAL POWER PLANT <small>2 × 930 t/h · 660 MWe · 50 Hz operator training simulator</small>
-      <span id="verHead" style="float:right;font-size:10.5px;color:var(--dim);letter-spacing:0"
-            title="Simulator build — version and source commit"></span></h1>
+    <h1>TWIN-BOILER COAL POWER PLANT <small>2 × 930 t/h · 660 MWe · 50 Hz operator training simulator</small></h1>
     <div class="spacer"></div>
     <div class="kv"><b id="hMW">0</b><span>MW gross</span></div>
     <div class="kv"><b id="hNET">0</b><span>MW net</span></div>
@@ -189,6 +208,8 @@
     <div class="kv"><b id="hHR">—</b><span>kJ/kWh</span></div>
     <div class="kv"><b id="clock">--:--</b><span>sim time</span></div>
     <div class="kv"><span id="conn">connecting…</span></div>
+    <span id="verHead" class="buildstamp"
+          title="Simulator build — version and source commit">v—</span>
   </header>
 
   <main>
@@ -275,8 +296,8 @@
           <input id="amb" type="number" min="5" max="45" step="1" value="30" style="width:48px">
           <button class="btn" id="btnAmb">set</button></label>
       
-        <span id="ver" style="margin-left:auto;font-size:10.5px;color:var(--dim);white-space:nowrap;padding-left:6px"
-              title="Simulator build — version and source commit"></span>
+        <span id="ver" style="margin-left:auto;font-size:11px;color:#8fa3b8;white-space:nowrap;padding-left:6px"
+              title="Simulator build — version and source commit (bottom-right of the station view, not of the window)"></span>
       </div>
     </div>
 

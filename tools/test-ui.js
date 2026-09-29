@@ -263,8 +263,22 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
 
   /* ---------------- autopilot, build stamp, control reachability ---------------- */
   await s.test('the autopilot takes the unit the rest of the way to load hands-off', async () => {
+    // The autopilot refuses to engage while a trip is latched — by design. An
+    // earlier scenario can leave one latched, so clear it the way an operator
+    // would before asking the autopilot to take over; otherwise this test
+    // measures a refusal, and leaves the unit tripped for every test after it.
+    for (let i = 0; i < 6; i++) {
+      const r = await page.evaluate(() => {
+        const p = window.__tcsim.state.protection;
+        if (p.mft.latched || p.turbineTrip.latched) window.__tcsim.cmd('resetMFT');
+        const a = window.__tcsim.autopilot;
+        if (!a.active) a.enable();
+        return { active: a.active, mft: p.mft.latched };
+      });
+      if (r.active) break;
+      await wait(3000);
+    }
     const before = await page.evaluate(() => window.__tcsim.state.plant.grossMW || 0);
-    await page.evaluate(() => { const a = window.__tcsim.autopilot; if (!a.active) a.enable(); });
     let peak = before; let last = null;
     for (let i = 0; i < 24; i++) {
       await wait(5000);
@@ -308,6 +322,43 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     s.assert(/[0-9a-f]{7,}/.test(txt), 'no source commit in the build stamp');
     return { detail: txt };
   }, { severity: 'low' });
+
+  await s.test('the build stamp sits in the top-right corner of the window, on screen', async () => {
+    // Regression: the stamp lived at the end of the <h1> and at the end of the
+    // bottom bar — but the header and the bar only span the 3D view, not the
+    // window, because of the 340 px side panel. It therefore sat ~340 px short
+    // of the corner it was described as being in, and few people ever found it.
+    // Worse, the app grid used an implicit auto column, so a header that could
+    // not fit widened the whole layout instead of being constrained and pushed
+    // the stamp clean off the right-hand edge.
+    const bad = [];
+    for (const [w, h] of [[1024, 768], [1280, 720], [1366, 768], [1440, 900], [1600, 900], [1920, 1080]]) {
+      await page.setViewport({ width: w, height: h });
+      await wait(700);
+      const r = await page.evaluate(() => {
+        const el = document.querySelector('#verHead');
+        if (!el) return { missing: true };
+        const b = el.getBoundingClientRect();
+        const at = document.elementFromPoint(b.x + b.width / 2, b.y + b.height / 2);
+        return {
+          text: el.textContent.trim(),
+          gapRight: Math.round(innerWidth - b.right),
+          onScreen: b.width > 0 && b.height > 0 && b.x >= 0 && b.y >= 0
+            && Math.round(b.right) <= innerWidth && Math.round(b.bottom) <= innerHeight,
+          covered: !(at && (el === at || el.contains(at))),
+        };
+      });
+      if (r.missing) { bad.push(`${w}x${h}: no #verHead`); continue; }
+      if (!r.onScreen) bad.push(`${w}x${h}: off screen`);
+      if (r.covered) bad.push(`${w}x${h}: covered by another element`);
+      if (r.gapRight < 0 || r.gapRight > 40) bad.push(`${w}x${h}: ${r.gapRight}px from the right edge`);
+      if (!/^v\d+\.\d+\.\d+/.test(r.text)) bad.push(`${w}x${h}: stamp reads "${r.text}"`);
+    }
+    await page.setViewport({ width: 1600, height: 900 });
+    await wait(600);
+    s.assert(bad.length === 0, `build stamp is not in the corner: ${bad.slice(0, 4).join(' · ')}`);
+    return { detail: 'top-right of the window at 1024–1920 px, 14 px from the edge, never covered' };
+  }, { severity: 'medium' });
 
   await s.test('operator controls stay clickable with the tutorial panel open', async () => {
     // Regression: the tutorial panel is absolutely positioned in the same
