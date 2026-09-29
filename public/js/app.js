@@ -528,7 +528,12 @@ function init() {
   /* ---- build stamp, bottom right ---- */
   fetch('/api/design').then((r) => r.json()).then((d) => {
     const v = d && d.version ? d.version : {};
-    $('#ver').textContent = `v${v.version || '—'}` + (v.commit ? ` · ${v.commit}` : '');
+    const label = `v${v.version || '—'}` + (v.commit ? ` · ${v.commit}` : '');
+    // shown in two places: the header survives, and it is the quickest way to
+    // tell which build an operator is actually looking at
+    $('#ver').textContent = label;
+    const head = $('#verHead');
+    if (head) head.textContent = label;
   }).catch(() => { $('#ver').textContent = 'v—'; });
   $('#btnTutorial').addEventListener('click', () => {
     tutorial.toggle();

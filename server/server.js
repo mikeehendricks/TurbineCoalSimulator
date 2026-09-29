@@ -512,7 +512,30 @@ app.get('/robots.txt', (req, res) => {
 });
 
 /* ------------------------------ static ----------------------------- */
-app.use(express.static(PUBLIC, { extensions: ['html'], maxAge: '1h' }));
+// Cache policy per asset class. The HMI used to be served with a flat one-hour
+// cache, which meant an updated install could stay invisible for up to an hour:
+// the operator reloaded the page and still saw the previous build, with none of
+// its new controls. HTML and the application's own scripts are now always
+// revalidated (cheap: express sends an ETag, so unchanged files answer 304),
+// while the vendored libraries and images - which only change when the build
+// does - keep a long cache.
+app.use(express.static(PUBLIC, {
+  extensions: ['html'],
+  setHeaders(res, filePath) {
+    const rel = path.relative(PUBLIC, filePath).replace(/\\/g, '/');
+    if (/\.html$/i.test(rel) || rel === '' || rel === 'index.html') {
+      res.setHeader('Cache-Control', 'no-store, must-revalidate');
+    } else if (rel.startsWith('vendor/')) {
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+    } else if (/\.(js|css)$/i.test(rel)) {
+      res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    } else if (/\.(png|jpe?g|svg|woff2?|ico|webp)$/i.test(rel)) {
+      res.setHeader('Cache-Control', 'public, max-age=604800');
+    } else {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  },
+}));
 
 app.use((req, res) => {
   res.status(404).type('text/plain').send('404 Not Found');
