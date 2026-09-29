@@ -470,9 +470,9 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
   });
 
   /* ---------------- navigation & layout ---------------- */
-  await s.test('all eight side tabs open and render content', async () => {
+  await s.test('all nine side tabs open and render content', async () => {
     const tabs = await page.evaluate(() => Array.from(document.querySelectorAll('.tabs button[data-pane]')).map((b) => b.dataset.pane));
-    s.eq(tabs.length, 8, `expected 8 tabs, found ${tabs.length}`);
+    s.eq(tabs.length, 9, `expected 9 tabs, found ${tabs.length}`);
     const empty = [];
     for (const t of tabs) {
       await page.evaluate((x) => {
