@@ -737,6 +737,71 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     return { detail: `idle ${idle.w}px → armed ${armed.w}px at the same spot; "${armedLabel}" → "${ack}"` };
   }, { severity: 'medium' });
 
+  await s.test('the plant controls panel exposes every drive the model simulates', async () => {
+    // The sequencers run the auxiliaries themselves; until now the operator had
+    // no way to touch one, so a single drive could not be tripped by hand and
+    // most of the model was unreachable from the console.
+    await page.evaluate(() => document.querySelector('.tabs button[data-pane="aux"]').click());
+    await wait(1200);
+    const r = await page.evaluate(() => ({
+      groups: [...document.querySelectorAll('#auxPanel .auxgrp h4')].map((h) => h.textContent.trim()),
+      rows: document.querySelectorAll('#auxPanel .auxrow').length,
+      withState: [...document.querySelectorAll('#auxPanel .auxrow')]
+        .filter((x) => /RUNNING|STOPPED/.test(x.querySelector('.st').textContent)).length,
+      withAction: [...document.querySelectorAll('#auxPanel .auxrow')]
+        .filter((x) => /START|STOP/.test(x.querySelector('button').textContent)).length,
+    }));
+    s.assert(r.groups.length >= 5, `only ${r.groups.length} groups: ${r.groups.join(', ')}`);
+    s.assert(r.rows >= 30, `only ${r.rows} drives listed`);
+    s.assert(r.withState >= 30, `${r.rows - r.withState} drive(s) show no state`);
+    s.assert(r.withAction >= 30, `${r.rows - r.withAction} drive(s) offer no action`);
+    return { detail: `${r.rows} drives in ${r.groups.length} groups — ${r.groups.join(', ')}` };
+  }, { severity: 'medium' });
+
+  await s.test('a drive can be started and stopped from the Controls tab', async () => {
+    // Verified against the model, not just the button label: a control that
+    // repaints without reaching the plant would pass on the label alone.
+    const readBack = async () => page.evaluate(() => ({
+      conv: window.__tcsim.state.bop.conveyorRunning,
+      cwp: (window.__tcsim.state.condenser.cwPumps || [])[0],
+      id: window.__tcsim.state.boilers[0].idRunning,
+    }));
+    const row = async (label) => page.evaluate((l) => {
+      const rows = [...document.querySelectorAll('#auxPanel .auxrow')];
+      const r = rows.find((x) => x.querySelector('.nm').textContent.trim() === l);
+      return r ? { st: r.querySelector('.st').textContent.trim(), btn: r.querySelector('button').textContent.trim() } : null;
+    }, label);
+
+    const before = await readBack();
+    const cases = [
+      ['Conveyor', 'conv'],
+      ['CW pump 1', 'cwp'],
+      ['ID fan', 'id'],
+    ];
+    const failed = [];
+    for (const [label, field] of cases) {
+      await page.evaluate((l) => {
+        const rows = [...document.querySelectorAll('#auxPanel .auxrow')];
+        rows.find((x) => x.querySelector('.nm').textContent.trim() === l).querySelector('button').click();
+      }, label);
+      await wait(1400);
+      const on = await readBack();
+      const shown = await row(label);
+      if (on[field] !== true) failed.push(`${label}: plant state still ${on[field]}`);
+      if (shown.st !== 'RUNNING') failed.push(`${label}: panel says "${shown.st}"`);
+      // and back off again
+      await page.evaluate((l) => {
+        const rows = [...document.querySelectorAll('#auxPanel .auxrow')];
+        rows.find((x) => x.querySelector('.nm').textContent.trim() === l).querySelector('button').click();
+      }, label);
+      await wait(1400);
+      const off = await readBack();
+      if (off[field] !== false) failed.push(`${label}: would not stop (${off[field]})`);
+    }
+    s.assert(failed.length === 0, failed.slice(0, 3).join(' · '));
+    return { detail: 'Conveyor, CW pump 1 and Boiler A ID fan each started and stopped against the model' };
+  }, { severity: 'high' });
+
   await s.test('a console that fails to boot says so instead of going silently dead', async () => {
     // Regression: if the module bundle ever fails to load again, every control
     // renders from the HTML with no handler behind it and the page looks fine.

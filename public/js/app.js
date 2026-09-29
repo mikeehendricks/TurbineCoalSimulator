@@ -21,6 +21,72 @@ let tutorial = null;
 let autopilot = null;
 let tutOffered = false;
 
+
+/* ------------------------------------------------------------------ *
+ *  Plant controls — individual drives
+ *
+ *  Every auxiliary the model simulates, whether the sequencer is running it or
+ *  not. `key` is what auxCommand() expects ("group:index"); `on` reads the
+ *  drive's state out of the snapshot. Mills are per boiler, so the two boiler
+ *  groups are generated rather than written out.
+ * ------------------------------------------------------------------ */
+function auxGroups() {
+  const boiler = (n) => {
+    const b = (s) => (s.boilers && s.boilers[n]) || {};
+    const mills = [];
+    for (let m = 0; m < 4; m++) {
+      mills.push({
+        label: `Mill ${m + 1}`, key: (n === 0 ? 'millA:' : 'millB:') + m,
+        on: (s) => !!(b(s).mills && b(s).mills[m] && b(s).mills[m].running),
+      });
+    }
+    return {
+      title: `Boiler ${n === 0 ? 'A' : 'B'}`, items: [
+        { label: 'ID fan', key: `id:${n}`, on: (s) => !!b(s).idRunning },
+        { label: 'FD fan', key: `fd:${n}`, on: (s) => !!b(s).fdRunning },
+        { label: 'PA fan', key: `pa:${n}`, on: (s) => !!b(s).paRunning },
+        { label: 'ESP fields', key: `esp:${n}`, on: (s) => !!b(s).espEnergised },
+        ...mills,
+        { label: 'Soot blow', key: null, boiler: n, once: true },
+      ],
+    };
+  };
+  const tg = (s) => s.turbine || {};
+  const bop = (s) => s.bop || {};
+  const cond = (s) => s.condenser || {};
+  return [
+    boiler(0),
+    boiler(1),
+    {
+      title: 'Turbine auxiliaries', items: [
+        { label: 'Turning gear', key: 'tg', on: (s) => !!tg(s).turningGear },
+        { label: 'Jacking oil pump', key: 'jack', on: (s) => !!tg(s).jackingOil },
+        { label: 'Lube oil pump', key: 'lop', on: (s) => !!tg(s).lubeOilPump },
+        { label: 'Vacuum pump', key: 'vac', on: (s) => !!cond(s).vacuumPumpRunning },
+        { label: 'CW pump 1', key: 'cwp:0', on: (s) => !!(cond(s).cwPumps || [])[0] },
+        { label: 'CW pump 2', key: 'cwp:1', on: (s) => !!(cond(s).cwPumps || [])[1] },
+      ],
+    },
+    {
+      title: 'Feed & condensate', items: [
+        { label: 'Boiler feed pump 1', key: 'bfp:0', on: (s) => !!(bop(s).bfp || [])[0]?.running },
+        { label: 'Boiler feed pump 2', key: 'bfp:1', on: (s) => !!(bop(s).bfp || [])[1]?.running },
+        { label: 'Condensate extr. 1', key: 'cep:0', on: (s) => !!(bop(s).cep || [])[0]?.running },
+        { label: 'Condensate extr. 2', key: 'cep:1', on: (s) => !!(bop(s).cep || [])[1]?.running },
+        { label: 'DM make-up', key: 'dm', on: (s) => !!bop(s).dmMakeUp },
+        { label: 'Cond. make-up valve', key: 'makeup', on: (s) => !!bop(s).makeUpValve },
+      ],
+    },
+    {
+      title: 'Coal, ash & FGD', items: [
+        { label: 'Conveyor', key: 'conv', on: (s) => !!bop(s).conveyorRunning },
+        { label: 'Crusher', key: 'crush', on: (s) => !!bop(s).crusherRunning },
+        { label: 'FGD absorber', key: 'fgd', on: (s) => !!bop(s).fgdRunning },
+      ],
+    },
+  ];
+}
+
 /* ============================ networking ============================ */
 function connect() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -329,6 +395,7 @@ function render() {
   /* ---- charts ---- */
   history = s.meta ? null : history;
   if (scene) scene.bind(s);
+  renderAux(s);
   drawCharts(s);
 
   /* ---- tutorial, sound and autopilot (driven from the live snapshot) ---- */
@@ -437,6 +504,72 @@ function chart(cv, data, keys, colors, fixedRange, r1, r2) {
     });
     ctx.stroke();
   });
+}
+
+
+/* ====================== plant controls (drives) ====================== */
+/**
+ * Paint the drive panel. It is rebuilt once and then updated in place: the
+ * panel is inside the side column and a full innerHTML rebuild on every 200 ms
+ * snapshot would fight with the operator's pointer and drop clicks.
+ */
+let auxBuilt = false;
+function renderAux(s) {
+  const host = $('#auxPanel');
+  if (!host) return;
+  const groups = auxGroups();
+
+  if (!auxBuilt) {
+    host.innerHTML = groups.map((g, gi) => `
+      <div class="auxgrp">
+        <h4>${g.title}</h4>
+        ${g.items.map((it, ii) => `
+          <div class="auxrow" data-gi="${gi}" data-ii="${ii}">
+            <span class="nm">${it.label}</span>
+            <span class="st">—</span>
+            <button class="btn" type="button">—</button>
+          </div>`).join('')}
+      </div>`).join('');
+    auxBuilt = true;
+  }
+
+  for (let gi = 0; gi < groups.length; gi++) {
+    for (let ii = 0; ii < groups[gi].items.length; ii++) {
+      const it = groups[gi].items[ii];
+      const row = host.querySelector(`.auxrow[data-gi="${gi}"][data-ii="${ii}"]`);
+      if (!row) continue;
+      const st = row.querySelector('.st');
+      const btn = row.querySelector('button');
+      if (it.key === null) {              // one-shot actions, no on/off state
+        st.textContent = 'action';
+        st.className = 'st';
+        btn.textContent = it.once === true ? (it.label === 'Soot blow' ? 'BLOW' : 'GO') : 'GO';
+        btn.disabled = false;
+        continue;
+      }
+      let on = false;
+      try { on = !!it.on(s); } catch { on = false; }
+      st.textContent = on ? 'RUNNING' : 'STOPPED';
+      st.className = `st ${on ? 'on' : 'off'}`;
+      btn.textContent = on ? 'STOP' : 'START';
+      btn.className = `btn ${on ? 'warn' : ''}`;
+      btn.disabled = false;
+    }
+  }
+}
+
+function auxClick(e) {
+  const row = e.target.closest('.auxrow');
+  if (!row) return;
+  const gi = Number(row.dataset.gi); const ii = Number(row.dataset.ii);
+  const it = auxGroups()[gi] && auxGroups()[gi].items[ii];
+  if (!it) return;
+  if (it.key === null) {
+    if (it.once === true) cmd('sootblow', it.boiler);
+    return;
+  }
+  const on = !!(state && it.on(state));
+  cmd(on ? 'stopAux' : 'startAux', it.key);
 }
 
 /* ============================== wiring ============================== */
@@ -622,6 +755,7 @@ async function init() {
     const v = !scene.labels.visible; scene.setLabelsVisible(v);
   });
 
+  $('#auxPanel').addEventListener('click', auxClick);
   $('#btnStart').addEventListener('click', () => cmd('start'));
   $('#btnShutdown').addEventListener('click', () => cmd('shutdown'));
   $('#btnTrip').addEventListener('click', () => cmd('tripTurbine'));

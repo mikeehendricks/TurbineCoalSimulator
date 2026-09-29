@@ -1230,6 +1230,7 @@ class Plant {
         metalTempHP: tg.metalTempHP, metalTempIP: tg.metalTempIP,
         lubeOilPressure: tg.lubeOilPressure, controlOilPressure: tg.controlOilPressure,
         jackingOilPressure: tg.jackingOilPressure, sealSteam: tg.sealSteam,
+        lubeOilPump: tg.lubeOilPump, jackingOil: tg.jackingOil,
         exhaustTemp: tg.exhaustTemp, glandSteamPressure: tg.glandSteamPressure,
       },
       generator: {
@@ -1264,6 +1265,7 @@ class Plant {
         ashSilo: bop.ashSilo, gypsumSilo: bop.gypsumSilo, dmWaterTank: bop.dmWaterTank,
         towerBasin: bop.towerBasin || bop.wetBulb, towerPlume: bop.towerPlume || 0,
         instrumentAir: bop.instrumentAir, stationAir: bop.stationAir,
+        dmMakeUp: bop.dmMakeUp, makeUpValve: bop.makeUpValve > 0,
         auxSteamPressure: bop.auxSteamPressure, serviceWater: bop.serviceWater,
       },
       emissions: {

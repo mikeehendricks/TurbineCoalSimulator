@@ -37,6 +37,21 @@
      span the 3D view, not the window, so anything in them sits ~340 px short of
      the right-hand edge. This one is the last item in the header, which does
      span the window, and it is bright enough to read at a glance. */
+  /* ---- plant controls: individual drives ---- */
+  .auxhint{font-size:10.5px;color:var(--dim);line-height:1.5;margin:0 0 9px}
+  #auxPanel{display:flex;flex-direction:column;gap:10px}
+  .auxgrp{border:1px solid var(--line);border-radius:5px;background:var(--panel);overflow:hidden}
+  .auxgrp>h4{margin:0;padding:5px 8px;font-size:10.5px;letter-spacing:.6px;color:#9fb3c8;
+    background:#131e2a;border-bottom:1px solid var(--line);text-transform:uppercase;font-weight:600}
+  .auxrow{display:flex;align-items:center;gap:7px;padding:4px 8px;border-top:1px solid #16222f}
+  .auxgrp>.auxrow:first-of-type{border-top:none}
+  .auxrow .nm{flex:1;font-size:11px;color:var(--txt);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .auxrow .st{font-size:9.5px;letter-spacing:.5px;padding:2px 5px;border-radius:3px;
+    border:1px solid var(--line);color:var(--dim);white-space:nowrap;min-width:58px;text-align:center}
+  .auxrow .st.on{background:#0f3d22;border-color:#2c8f52;color:#8ff0b8}
+  .auxrow .st.off{background:#1a1013;border-color:#3a2226;color:#c98d92}
+  .auxrow button.btn{padding:2px 8px;font-size:10.5px;min-width:52px}
+
   .buildstamp{font-size:11.5px;color:#9fb3c8;background:#0d1826;border:1px solid var(--line);
     border-radius:4px;padding:3px 7px;white-space:nowrap;letter-spacing:.2px;flex:none}
   @media (max-width:1240px){
@@ -209,7 +224,7 @@
     <div class="kv"><b id="clock">--:--</b><span>sim time</span></div>
     <div class="kv"><span id="conn">connecting…</span></div>
     <span id="verHead" class="buildstamp"
-          title="Simulator build — version and source commit">v—</span>
+          title="Simulator build — version and source commit">__TCSIM_BUILD__</span>
   </header>
 
   <main>
@@ -297,7 +312,7 @@
           <button class="btn" id="btnAmb">set</button></label>
       
         <span id="ver" style="margin-left:auto;font-size:11px;color:#8fa3b8;white-space:nowrap;padding-left:6px"
-              title="Simulator build — version and source commit (bottom-right of the station view, not of the window)"></span>
+              title="Simulator build — version and source commit (bottom-right of the station view, not of the window)">__TCSIM_BUILD__</span>
       </div>
     </div>
 
@@ -308,6 +323,7 @@
         <button data-pane="boiler">Boilers</button>
         <button data-pane="turb">Turbine</button>
         <button data-pane="bop">BOP</button>
+        <button data-pane="aux">Controls</button>
         <button data-pane="faults">Faults</button>
         <button data-pane="proc">Procedure</button>
         <button data-pane="events">Log</button>
@@ -354,6 +370,13 @@
         <div class="fgroup"><div class="h">Auxiliary plant start / stop</div>
           <div id="auxbtns" style="display:flex;flex-wrap:wrap;gap:5px"></div>
         </div>
+      </div>
+
+      <div class="pane" id="p-aux">
+        <div class="auxhint">Individual drives. The start-up and shut-down
+          sequencers run these themselves, so use them to set up a scenario, to
+          trip a single auxiliary by hand, or to see what a drive is doing.</div>
+        <div id="auxPanel"></div>
       </div>
 
       <div class="pane" id="p-faults">

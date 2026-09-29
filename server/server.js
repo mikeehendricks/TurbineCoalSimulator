@@ -596,6 +596,30 @@ app.get('/robots.txt', (req, res) => {
 // revalidated (cheap: express sends an ETag, so unchanged files answer 304),
 // while the vendored libraries and images - which only change when the build
 // does - keep a long cache.
+// The build stamp is written into the HTML on the way out, not fetched by
+// script and filled in afterwards. Anything that stops the bundle running — a
+// stale cached copy, a blocked request, a browser that will not parse the
+// module, an extension that kills the fetch — used to leave both stamps blank,
+// and a blank stamp looks exactly like a missing one. Rendered here it is in
+// the markup the browser receives, so it cannot go missing that way.
+function buildLabel() {
+  const v = localVersion();
+  return `v${v.version || '—'}` + (v.commit ? ` · ${v.commit}` : '');
+}
+
+app.get('/', (req, res) => {
+  try {
+    const html = fs.readFileSync(path.join(PUBLIC, 'index.html'), 'utf8')
+      .replace(/__TCSIM_BUILD__/g, buildLabel());
+    res.set('Cache-Control', 'no-store, must-revalidate');
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Referrer-Policy', 'no-referrer');
+    res.type('html').send(html);
+  } catch (e) {
+    res.status(500).type('text/plain').send('index.html could not be read');
+  }
+});
+
 app.use(express.static(PUBLIC, {
   extensions: ['html'],
   setHeaders(res, filePath) {

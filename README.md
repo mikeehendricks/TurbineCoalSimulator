@@ -156,6 +156,25 @@ sudo systemctl restart turbine-coal-simulator
 | **Load setpoint / ramp** | complete the loading once synchronised |
 | **Time** | 1× … 600× real time |
 | **Ambient** | air temperature (drives the cooling tower and condenser) |
+| **RESET PLANT** | two clicks — returns the unit to cold and clears faults, trips, load, the event journal and the plant clock |
+
+### Plant controls — individual drives
+
+The **Controls** tab in the side column operates the auxiliaries one at a time,
+which the start-up and shut-down sequencers otherwise do themselves. Each row
+shows whether the drive is running and offers START or STOP.
+
+| Group | Drives |
+|---|---|
+| Boiler A / Boiler B | ID fan, FD fan, PA fan, ESP fields, mills 1–4, soot blow |
+| Turbine auxiliaries | turning gear, jacking oil pump, lube oil pump, vacuum pump, CW pumps 1–2 |
+| Feed & condensate | boiler feed pumps 1–2, condensate extraction pumps 1–2, DM make-up, condenser make-up valve |
+| Coal, ash & FGD | conveyor, crusher, FGD absorber |
+
+Every interlock stays armed while you use them: stopping the running ID fans on
+a fired boiler trips the unit on MFT, exactly as it would from the sequencer.
+The panel is the way to set up a scenario — take a mill out, drop a CW pump, or
+de-energise an ESP — and to watch what a single drive does to the plant.
 
 ### Cold start-up sequence
 
