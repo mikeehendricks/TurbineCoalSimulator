@@ -19,6 +19,7 @@ const fs = require('fs');
 const path = require('path');
 const { execSync, spawnSync } = require('child_process');
 const { Suite } = require('./lib/suite.js');
+const WebSocket = require('ws');
 
 const ROOT = path.resolve(__dirname, '..');
 fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
@@ -139,6 +140,52 @@ const post = (p, body, opts) => fetch(BASE + p, {
     return { detail: 'wrong password and unknown user → 401, valid credentials → 200 + HttpOnly cookie' };
   }, { severity: 'critical' });
 
+  await s.test('repeated failed sign-ins are rate limited', async () => {
+    // Regression: login had no rate limit or lockout at all, so a password
+    // could be guessed without end. The counter is keyed on username+IP and the
+    // lockout is time-boxed, so it can never become the permanent, unrecoverable
+    // lockout an operator cannot get past. A throwaway username keeps the
+    // counter away from the real account the rest of this suite signs in with.
+    const codes = [];
+    for (let i = 0; i < 12; i++) {
+      const r = await post('/api/admin/login', { username: 'brute-force-probe', password: `guess-${i}` });
+      codes.push(r.status);
+    }
+    s.eq(codes[0], 401, 'first failed sign-in status');
+    // The counter trips on the 8th failure, so that attempt still answers 401
+    // and every attempt after it is refused.
+    s.assert(codes.slice(-2).every((c) => c === 429),
+      `no lockout after 12 attempts: ${codes.join(',')}`);
+    s.assert(codes.filter((c) => c === 401).length <= 8,
+      `more than 8 attempts were allowed through: ${codes.join(',')}`);
+    const body = await (await post('/api/admin/login', { username: 'brute-force-probe', password: 'guess-99' })).json();
+    s.assert(/minute/i.test(String(body.error || '')), `the lockout tells the operator nothing: "${body.error}"`);
+    // the real account must be untouched
+    const good = await post('/api/admin/login', { username: 'chiefengineer', password: 'Boiler-Drum-2026!' });
+    s.eq(good.status, 200, 'the lockout bled onto a different account');
+    return { detail: `${codes.join(',')} → locked; the real account still signs in (${good.status})` };
+  }, { severity: 'high' });
+
+  await s.test('a forged X-Forwarded-For cannot poison the visitor log', async () => {
+    // Regression: clientIp() trusted X-Forwarded-For unconditionally, so any
+    // client could put an invented "WAN IP" in the admin visitor list — and make
+    // the server geolocate whatever address the attacker chose. Forwarded
+    // headers are now honoured only when TRUST_PROXY is set.
+    const forged = '203.0.113.55';
+    await get('/', { headers: { 'x-forwarded-for': forged, 'user-agent': 'spoof-probe/1.0' } });
+    await get('/', { headers: { 'x-real-ip': forged, 'user-agent': 'spoof-probe/1.0' } });
+    await wait(600);
+    const r = await get('/api/admin/visitors', { headers: { cookie: `admin_session=${cookie}` } });
+    s.eq(r.status, 200, 'status');
+    const j = await r.json();
+    const poisoned = (j.visitors || []).filter((v) => String(v.ip).indexOf(forged) !== -1);
+    s.assert(poisoned.length === 0,
+      `${poisoned.length} visitor record(s) carry the forged IP ${forged}`);
+    s.assert((j.visitors || []).every((v) => v.ip === '127.0.0.1' || v.ip === '::1' || v.ip === '::ffff:127.0.0.1'),
+      `visitor list holds an address that is not this test client: ${(j.visitors || []).map((v) => v.ip).join(', ')}`);
+    return { detail: `${j.total} visitor(s), all from the real socket address` };
+  }, { severity: 'high' });
+
   await s.test('authenticated visitor list exposes WAN IP and geolocation fields', async () => {
     // Visitor tracking keys off normal page views, not /api/ traffic.
     await get('/');
@@ -228,6 +275,38 @@ const post = (p, body, opts) => fetch(BASE + p, {
     s.assert(!fs.existsSync('/tmp/pwned-by-sim'), 'injected command executed!');
     return { detail: 'fixed script path, no user data in spawn(), unauthenticated call rejected (401)' };
   }, { severity: 'critical' });
+
+  await s.test('cross-origin WebSocket connections are refused', async () => {
+    // Cross-site WebSocket hijacking: the control channel is unauthenticated by
+    // design, so without an origin check any page the operator visits could open
+    // a socket to this port and trip the unit.
+    const wsBase = BASE.replace(/^http/, 'ws');
+    const open = (origin) => new Promise((res) => {
+      const w = new WebSocket(`${wsBase}/ws`, origin ? { headers: { origin } } : {});
+      const t = setTimeout(() => { try { w.close(); } catch (e) {} res('timeout'); }, 4000);
+      w.on('open', () => { clearTimeout(t); res('open'); setTimeout(() => { try { w.close(); } catch (e) {} }, 200); });
+      w.on('error', () => { clearTimeout(t); res('rejected'); });
+    });
+    const evil = await open('http://evil.example');
+    const own = await open(BASE);
+    const none = await open(null);
+    s.eq(evil, 'rejected', 'a hostile Origin was allowed to open the control socket');
+    s.eq(own, 'open', 'the console itself can no longer connect');
+    s.eq(none, 'open', 'non-browser clients (no Origin) must still connect');
+    return { detail: `hostile origin ${evil} · same origin ${own} · no origin ${none}` };
+  }, { severity: 'critical' });
+
+  await s.test('baseline security headers are present', async () => {
+    const home = await get('/');
+    s.eq(home.headers.get('x-content-type-options'), 'nosniff', 'missing X-Content-Type-Options');
+    const csp = home.headers.get('content-security-policy') || '';
+    s.assert(/default-src/.test(csp), 'no Content-Security-Policy on the HMI');
+    const admin = await get('/admin');
+    s.eq(admin.headers.get('x-frame-options'), 'DENY', '/admin can be framed (clickjacking)');
+    s.assert(/frame-ancestors/.test(admin.headers.get('content-security-policy') || ''),
+      '/admin sets no frame-ancestors policy');
+    return { detail: 'nosniff · CSP on the HMI · X-Frame-Options: DENY + frame-ancestors on /admin' };
+  }, { severity: 'medium' });
 
   await s.test('no reflected XSS: API responses are JSON with a safe content type', async () => {
     const r = await post('/api/command', { cmd: '<script>alert(1)</script>', value: '"><img src=x onerror=alert(1)>' });

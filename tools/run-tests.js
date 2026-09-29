@@ -49,7 +49,11 @@ function runOne(suite, group = '') {
     let out = '', err = '';
     child.stdout.on('data', (d) => { out += d; });
     child.stderr.on('data', (d) => { err += d; process.stderr.write(d); });
-    const kill = setTimeout(() => child.kill('SIGKILL'), suite.key === 'sim' ? 1800000 : 600000);
+    // The UI suite drives a real browser through a whole cold start-up, so it
+    // needs far more than the API and security suites do; a 10-minute cap used
+    // to cut it off mid-run, which discarded every result it had collected.
+    const budgetMs = suite.key === 'sim' ? 1800000 : (suite.key === 'ui' ? 1500000 : 600000);
+    const kill = setTimeout(() => child.kill('SIGKILL'), budgetMs);
     child.on('close', (code) => {
       clearTimeout(kill);
       let m = out.match(/__RESULT__([\s\S]*?)__RESULT_END__/);

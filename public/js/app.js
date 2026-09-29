@@ -2,7 +2,6 @@
  * app.js — HMI wiring: WebSocket feed, 3D scene binding, mimic panels,
  * alarm/event/fault displays and the trends.
  */
-import { PlantScene } from '/js/scene.js';
 import { Tutorial } from '/js/tutorial.js';
 import { PlantAudio } from '/js/audio.js';
 import { Autopilot } from '/js/autopilot.js';
@@ -441,8 +440,26 @@ function chart(cv, data, keys, colors, fixedRange, r1, r2) {
 }
 
 /* ============================== wiring ============================== */
-function init() {
-  scene = new PlantScene($('#gl'));
+async function init() {
+  // The 3D view is optional. It is the only part of the console that needs the
+  // vendored Three.js, so it is loaded on its own: if that file is missing or
+  // will not parse, the mimic panels, alarms, trends and every operator control
+  // still work instead of the whole console going dead.
+  try {
+    const mod = await import('/js/scene.js');
+    scene = new mod.PlantScene($('#gl'));
+  } catch (e) {
+    scene = null;
+    console.error('3D station view unavailable — the rest of the console still works:', e);
+    const gl = $('#gl');
+    if (gl) {
+      gl.innerHTML = '<div style="padding:18px;color:#ffdede;font-family:var(--mono);font-size:12px;'
+        + 'line-height:1.6">3D station view unavailable — the vendored Three.js library '
+        + 'could not be loaded.<br>Every other panel and control still works. '
+        + 'Run <b>scripts/vendor.js</b>, or hard-reload with Ctrl+Shift+R.</div>';
+      gl.style.display = 'block';
+    }
+  }
 
   /* ---- sound ---- */
   audio = new PlantAudio();
@@ -488,41 +505,84 @@ function init() {
   });
 
   /* ---- autopilot: start, run up and load the unit hands-off ---- */
+  const autoBtn = $('#btnAuto');
+  // The autopilot can end its own engagement (a trip, a latched MFT), so the
+  // button repaints from `autopilot.active` on every change — not just on
+  // click. Painting only on click left the label stuck on AUTOPILOT ON while
+  // the autopilot was in fact off, which read as a broken button.
+  const paintAuto = () => {
+    autoBtn.textContent = autopilot.active ? '🤖 AUTOPILOT ON' : '🤖 AUTOPILOT OFF';
+    autoBtn.classList.toggle('primary', autopilot.active);
+    autoBtn.title = autopilot.active
+      ? 'Autopilot engaged — click to hand control back to the operator'
+      : 'Autopilot off — click to run the unit up and load it hands-off';
+  };
   autopilot = new Autopilot({
     cmd,
     setSpeed,
     setLoad,
     sfx: (name) => audio && audio.event(name),
     el: $('#autoState'),
+    onChange: paintAuto,
   });
-  const autoBtn = $('#btnAuto');
-  const paintAuto = () => {
-    autoBtn.textContent = autopilot.active ? '🤖 AUTOPILOT ON' : '🤖 AUTOPILOT OFF';
-    autoBtn.classList.toggle('primary', autopilot.active);
-  };
-  autoBtn.addEventListener('click', () => { autopilot.toggle(); paintAuto(); });
+  autoBtn.addEventListener('click', () => {
+    const ok = autopilot.toggle(state);
+    paintAuto();
+    // Refused engagements flash, so a single click is never silent.
+    if (ok === false && !autopilot.active) {
+      autoBtn.classList.add('flash');
+      setTimeout(() => autoBtn.classList.remove('flash'), 900);
+    }
+  });
   paintAuto();
   autopilot.paint();
 
   /* ---- reset plant: two clicks, because it discards the whole run ---- */
   const resetBtn = $('#btnResetPlant');
   let resetArmedAt = 0;
-  const paintReset = () => {
-    resetBtn.textContent = resetArmedAt ? '⟲ CONFIRM RESET' : '⟲ RESET PLANT';
+  let resetTimer = null;
+  let resetAck = null;
+  const paintReset = (label) => {
+    resetBtn.textContent = label !== undefined ? label
+      : (resetArmedAt ? '⟲ CONFIRM RESET' : '⟲ RESET PLANT');
     resetBtn.classList.toggle('warn', !!resetArmedAt);
+  };
+  const disarmReset = () => {
+    resetArmedAt = 0;
+    if (resetTimer) { clearTimeout(resetTimer); resetTimer = null; }
+    paintReset();
   };
   resetBtn.addEventListener('click', () => {
     if (!resetArmedAt) {
+      // Arm, and count the window down in the label. A silent label swap made
+      // the arm step look like nothing had happened at all.
       resetArmedAt = Date.now();
       paintReset();
-      setTimeout(() => { resetArmedAt = 0; paintReset(); }, 10000);   // 10 s to confirm
+      const tick = () => {
+        const left = Math.ceil((10000 - (Date.now() - resetArmedAt)) / 1000);
+        if (left <= 0) { disarmReset(); return; }
+        paintReset(`⟲ CONFIRM RESET (${left}s)`);
+        resetTimer = setTimeout(tick, 500);
+      };
+      resetTimer = setTimeout(tick, 500);
       return;
     }
-    resetArmedAt = 0;
-    paintReset();
+    disarmReset();
+    // A reset discards the run, so nothing that was driving the plant may carry
+    // on: left running, the guided tutorial's next step would start the unit
+    // again straight away and the operator would think the reset had failed.
+    if (tutorial && tutorial.running) tutorial.stop();
     if (autopilot && autopilot.active) { autopilot.disable('disengaged — plant reset'); paintAuto(); }
     cmd('resetPlant');
+    // Always acknowledge. On an already-cold unit a reset changes nothing on
+    // screen, and without this the button looks dead.
+    paintReset('✓ PLANT RESET');
+    resetBtn.classList.add('ok');
+    clearTimeout(resetAck);
+    resetAck = setTimeout(() => { resetBtn.classList.remove('ok'); paintReset(); }, 1400);
   });
+  // Escape cancels an armed reset — the only way out used to be waiting it out.
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && resetArmedAt) disarmReset(); });
   paintReset();
 
   /* ---- build stamp, bottom right ---- */
@@ -556,8 +616,9 @@ function init() {
     b.classList.add('active'); boilerTab = Number(b.dataset.boiler); render();
   }));
   $$('#viewbtns button[data-view]').forEach(b =>
-    b.addEventListener('click', () => scene.view(b.dataset.view)));
+    b.addEventListener('click', () => { if (scene) scene.view(b.dataset.view); }));
   $('#lblBtn').addEventListener('click', () => {
+    if (!scene) return;
     const v = !scene.labels.visible; scene.setLabelsVisible(v);
   });
 
@@ -597,4 +658,9 @@ function init() {
   setInterval(() => { if (ws && ws.readyState === 1) send({ type: 'ping' }); }, 20000);
 }
 
-window.addEventListener('DOMContentLoaded', init);
+window.addEventListener('DOMContentLoaded', () => {
+  init().catch((e) => {
+    console.error('HMI failed to start:', e);
+    // The boot watchdog in index.html turns this into a visible message.
+  });
+});

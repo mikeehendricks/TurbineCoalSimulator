@@ -11,9 +11,23 @@
  */
 'use strict';
 const path = require('path');
+const fs = require('fs');
 const { Suite } = require('./lib/suite.js');
 
-const BASE = process.env.BASE || 'http://127.0.0.1:8080';
+// Run against a simulator of our own unless one is pointed at us. Sharing the
+// developer's :8080 instance silently broke a whole run: an unrelated browser
+// session started the unit in the middle of the suite, so every cold-start
+// test (the guided tutorial) failed for no reason that showed up in the code.
+let ownServer = null;
+let BASE = process.env.BASE || '';
+if (!BASE) {
+  const port = Number(process.env.TEST_PORT || 8097);
+  process.env.PORT = String(port);
+  process.env.DATA_DIR = process.env.TEST_DATA || '/tmp/tcsim-ui-test';
+  fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
+  ownServer = require('../server/server.js');
+  BASE = `http://127.0.0.1:${port}`;
+}
 const ADMIN = process.env.ADMIN_PATH || '/admin';
 let puppeteer;
 try {
@@ -268,6 +282,25 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
       `autopilot did not raise load: ${before.toFixed(0)} → ${peak.toFixed(0)} MW (state ${last && last.st})`);
     return { detail: `${before.toFixed(0)} → ${peak.toFixed(0)} MW, state ${last && last.st} — ${last && last.note}` };
   }, { severity: 'medium' });
+
+  await s.test('the autopilot button label never disagrees with the autopilot state', async () => {
+    // Regression: enable() engaged and then update() disengaged on the very
+    // next snapshot (a latched MFT), but only the click handler repainted the
+    // button. The label stayed on AUTOPILOT ON while `active` was false, so the
+    // control looked broken and un-clickable — the operator saw a button that
+    // said ON, did nothing, and could not be turned off.
+    const desync = [];
+    for (let i = 0; i < 12; i++) {
+      await wait(700);
+      const r = await page.evaluate(() => ({
+        active: window.__tcsim.autopilot.active,
+        label: (document.querySelector('#btnAuto') || {}).textContent || '',
+      }));
+      if (r.active !== /ON/.test(r.label)) desync.push(`active=${r.active} label="${r.label.trim()}"`);
+    }
+    s.assert(desync.length === 0, `button label disagreed with the state: ${desync.slice(0, 3).join(' | ')}`);
+    return { detail: 'label tracked the state across 12 snapshots' };
+  }, { severity: 'high' });
 
   await s.test('the bottom bar shows the build version and source commit', async () => {
     const txt = (await page.$eval('#ver', (e) => e.textContent)).trim();
@@ -526,7 +559,35 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     return { detail: `reachable at ${ADMIN}, registrationOpen=${st.res.registrationOpen}` };
   });
 
+  // Placed here, not with the other autopilot tests: latching the MFT trips
+  // the unit, and the sound test above needs the machine at load.
+  await s.test('the autopilot refuses to engage on a latched trip and says why', async () => {
+    await page.evaluate(() => { if (window.__tcsim.autopilot.active) window.__tcsim.autopilot.disable(); });
+    await wait(400);
+    await page.evaluate(() => window.__tcsim.cmd('mft'));
+    await wait(1500);
+    await page.click('#btnAuto');
+    await wait(1200);
+    const r = await page.evaluate(() => ({
+      active: window.__tcsim.autopilot.active,
+      label: (document.querySelector('#btnAuto') || {}).textContent.trim(),
+      note: (document.querySelector('#autoState') || {}).textContent.trim(),
+      mft: window.__tcsim.state.protection.mft.latched,
+    }));
+    s.assert(r.mft === true, 'the MFT did not latch, so the test proved nothing');
+    s.assert(r.active === false, 'autopilot engaged while the MFT was latched');
+    s.assert(/OFF/.test(r.label), `label should still read OFF, reads "${r.label}"`);
+    s.assert(/cannot engage/i.test(r.note), `no reason given to the operator: "${r.note}"`);
+    // clear the trip again so later tests start clean
+    await page.evaluate(() => window.__tcsim.cmd('resetMFT'));
+    await wait(1200);
+    return { detail: `refused — "${r.note}"` };
+  }, { severity: 'high' });
+
   await s.test('the RESET PLANT button returns the simulator to a cold unit', async () => {
+    // The reset must also stop anything that was driving the plant: a tutorial
+    // left running restarts the unit from its next step, which makes a working
+    // reset look broken.
     await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     await wait(3500);
     // Put the unit on load with a fault in, so the reset has something to discard.
@@ -575,6 +636,62 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     return { detail: `${before.mw} MW / ${before.events} events → ${after.mode}, ${after.mw} MW, clock ${after.t} min, ${after.events} events` };
   }, { severity: 'medium' });
 
+  await s.test('arming RESET PLANT neither shifts the bar nor stays silent', async () => {
+    // Two regressions, both of which made the button look broken:
+    //   1. arming widened the button, the bar reflowed, and the confirming
+    //      click landed somewhere else;
+    //   2. resetting an already-cold unit changed nothing on screen.
+    const box = () => page.evaluate(() => {
+      const r = document.querySelector('#btnResetPlant').getBoundingClientRect();
+      return { w: Math.round(r.width), x: Math.round(r.x), y: Math.round(r.y) };
+    });
+    // Clear any arm left over from an earlier test, so this one measures the
+    // click it is actually about.
+    await page.keyboard.press('Escape');
+    await wait(400);
+    const idle = await box();
+    await page.click('#btnResetPlant');
+    let armed = idle; let armedLabel = '';
+    for (let i = 0; i < 8; i++) {          // poll: the label shows a countdown
+      await wait(250);
+      armed = await box();
+      armedLabel = (await page.$eval('#btnResetPlant', (e) => e.textContent)).trim();
+      if (/CONFIRM/i.test(armedLabel)) break;
+    }
+    s.assert(armed.w === idle.w && armed.x === idle.x && armed.y === idle.y,
+      `arming moved the button: ${JSON.stringify(idle)} → ${JSON.stringify(armed)}`);
+    s.assert(/CONFIRM/i.test(armedLabel), `arming click did not ask for confirmation: "${armedLabel}"`);
+    await page.click('#btnResetPlant');
+    let ack = '';
+    for (let i = 0; i < 8; i++) {
+      await wait(200);
+      ack = (await page.$eval('#btnResetPlant', (e) => e.textContent)).trim();
+      if (!/CONFIRM/i.test(ack)) break;
+    }
+    s.assert(/RESET/i.test(ack), `no acknowledgement after the reset: "${ack}"`);
+    await wait(1600);
+    const settled = (await page.$eval('#btnResetPlant', (e) => e.textContent)).trim();
+    s.assert(/RESET PLANT/i.test(settled), `button did not return to its idle label: "${settled}"`);
+    return { detail: `idle ${idle.w}px → armed ${armed.w}px at the same spot; "${armedLabel}" → "${ack}"` };
+  }, { severity: 'medium' });
+
+  await s.test('a console that fails to boot says so instead of going silently dead', async () => {
+    // Regression: if the module bundle ever fails to load again, every control
+    // renders from the HTML with no handler behind it and the page looks fine.
+    const p2 = await browser.newPage();
+    await p2.setJavaScriptEnabled(true);
+    await p2.setRequestInterception(true);
+    p2.on('request', (r) => (/\/js\/app\.js/.test(r.url()) ? r.abort() : r.continue()));
+    await p2.goto(BASE, { waitUntil: 'load' });
+    await wait(10000);
+    const shown = await p2.$('#bootfail');
+    const text = shown ? (await p2.$eval('#bootfail', (e) => e.textContent)).trim() : '';
+    await p2.close();
+    s.assert(shown !== null, 'no boot-failure banner after app.js was blocked');
+    s.assert(/reload/i.test(text), `the banner gives the operator no way out: "${text.slice(0, 80)}"`);
+    return { detail: 'blocked /js/app.js → the watchdog tells the operator to hard-reload' };
+  }, { severity: 'high' });
+
   await s.test('no JavaScript errors accumulated over the whole session', () => {
     s.assert(pageErrors.length === 0, `page errors: ${pageErrors.slice(0, 3).join(' | ')}`);
     s.assert(consoleErrors.length === 0, `console errors: ${consoleErrors.slice(0, 3).join(' | ')}`);
@@ -588,5 +705,6 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
 
   s.done();
   await browser.close();
+  if (ownServer && ownServer.server) { try { ownServer.server.close(); } catch { /* ignore */ } }
   setTimeout(() => process.exit(0), 300);
 })().catch((e) => { console.error('SUITE CRASH', e); process.exit(1); });

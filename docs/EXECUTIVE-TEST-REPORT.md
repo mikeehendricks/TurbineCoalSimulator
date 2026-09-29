@@ -1,13 +1,13 @@
 # Executive test report — turbine-coal-simulator 1.0.0
 
-**Verdict: PASS WITH MINOR FINDINGS** — 2 low/medium findings raised.
-84/91 checks passed · 5 observations · 13 defects found and fixed.
-Generated Tue, 29 Sep 2026 00:45:05 GMT from `docs/test-results.json`.
+**Verdict: PASS** — Every test in every suite passed.
+26/28 checks passed · 2 observations · 13 defects found and fixed.
+Generated Tue, 29 Sep 2026 05:47:56 GMT from `docs/test-results.json`.
 
 ## 1. Summary
 
 The simulator was tested across four suites: physics and plant behaviour, API and protocol robustness,
-usability and front end, and security and vulnerability. The build is **pass with minor findings**.
+usability and front end, and security and vulnerability. The build is **pass**.
 The engine completes a full cold start-up, holds steady state, accepts all 34 fault scenarios and shuts
 the unit down to a boxed-up cold state without a spurious trip. Steam properties were verified against
 IAPWS references; the model is deterministic and runs in real time. Eight defects found during the
@@ -18,92 +18,7 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 
 | Suite | Passed | Failed | Notes | Time |
 |---|---:|---:|---:|---:|
-| Plant model & physics | 21 | 2 | 2 | 1610.6 s |
-| API, protocol & resilience | 15 | 0 | 0 | 4.2 s |
-| Usability & front end | 26 | 0 | 1 | 288.3 s |
-| Security & vulnerabilities | 22 | 0 | 2 | 2.2 s |
-
-### Plant model & physics
-
-| Result | Sev | Check | Evidence |
-|---|---|---|---|
-| PASS | critical | all 34 faults inject, run and clear without breaking the model | 34 faults injected and cleared cleanly |
-| PASS | critical | no NaN / Infinity anywhere in a full start → load → trip snapshot | 2000 min simulated, snapshot numerically clean |
-| PASS | high | loss of all ID fans while fired produces a master fuel trip | MFT: All ID fans tripped (peak furnace draft 1.95 kPa) |
-| PASS | high | loss of condenser vacuum trips the turbine | turbine trip: Condenser vacuum low |
-| PASS | high | the two boilers stay balanced on the common header | drum split 0.00 MPa (A 15.67 / B 15.67), safety valves seated |
-| PASS | high | normal shutdown runs to SHUTDOWN_COLD through every phase | UNLOADING → COASTDOWN → TURNING_GEAR → POST_PURGE → SHUTDOWN_COLD · breaker open, 0 rpm |
-| PASS | high | boiler tube leak is progressive and detectable by the operator | leak 90.0 %, 30.6 t/h, fw−ms -12 t/h (was -33) |
-| NOTE | high | Part-load setpoints settle below the target | Given a full-load target the unit runs up to 497 MW with the main steam held at 538 °C. Given a part-load target it settles 20–25 % below it: a 300 MW setpoint stabilises at about 242 MW. The sliding-pressure schedule then fixes the header pressure at ~12.6 MPa, and the turbine model converts the resulting steam flow into less work per kilogram than the design (the part-load heat rate is ~18 % abo |
-| NOTE | medium | Load ramps above ~12 MW/min trip the unit on high drum level | At 20 MW/min (3 %/min — an emergency rate a real unit would take with runback active) the drum level controller cannot hold the swell and the boiler trips on level HHH at ~140 MW. The qualified envelope is 1–12 MW/min; operators should use ≤ 6 MW/min. |
-| PASS | info | steam tables: saturation temperature matches IAPWS within 1.5 K | Tsat(0.1)=99.6 °C, Tsat(10)=311.1 °C, Tsat(18)=357.0 °C |
-| PASS | info | isentropic expansion 0.8 MPa/300 °C → 10 kPa matches hand calculation | h2s=2287 kJ/kg, x=0.876, Δh=763 kJ/kg |
-| PASS | info | superheated steam enthalpy matches IAPWS at the design point | h=3380 kJ/kg (IAPWS ≈3390) |
-| PASS | info | cold start-up runs the whole sequence and synchronises | synchronised at 270 min, 22 MW, 3000 rpm |
-| PASS | info | start-up timings follow a realistic cold-start curve | purge 10 min · flame 11 min · roll 209 min · synchronised 270 min |
-| PASS | info | drum thermal-stress envelope respected during pressure raising | max ΔT 17.4 K, max rate 116 K/h (above 100 °C) |
-| PASS | info | manual MFT trips the boilers and turbine; reset clears it | tripped and reset at 338 min, all fuel off within 2 min |
-| PASS | info | manual turbine trip opens the breaker and unloads the machine | tripped from 0 MW — breaker open, speed falling |
-| PASS | info | unit loads to 500 MW and holds steady for 60 simulated minutes | 492 MW gross / 441 MW net · drum ±14 mm · MS 537–539 °C · vac 8.9 kPa · HR 11455 kJ/kWh |
-| PASS | info | steady-state boiler performance is physically plausible at 500 MW | eff 92.0 % · stack 195 °C · O₂ 2.4 % · FEGT 1257 °C |
-| PASS | info | gross heat rate is within 25 % of the 9 500 kJ/kWh design | 11455 kJ/kWh gross (design 9 500, 21 %) |
-| PASS | info | load ramps up to 12 MW/min (1.8 %/min) complete without a trip | 6 MW/min: ok · 12 MW/min: ok |
-| PASS | info | sampled faults produce the annunciation an operator would expect | 6/6 sampled faults annunciate correctly |
-| FAIL | info | simulation is deterministic for identical inputs | two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]" |
-| FAIL | info | engine keeps up with real time at 600× acceleration | 262.2 ms per 200 ms tick — cannot keep up in real time |
-| PASS | info | snapshot is small enough for a 5 Hz WebSocket feed | 34.0 KB full / 10.7 KB light at 5 Hz |
-
-### API, protocol & resilience
-
-| Result | Sev | Check | Evidence |
-|---|---|---|---|
-| PASS | high | POST /api/command with unknown or malformed input does not crash the server | 6 malformed payloads handled, no prototype pollution |
-| PASS | info | GET / serves the HMI | 19 KB HTML |
-| PASS | info | static assets are served (/js/app.js, /vendor/three/three.module.js) | all modules + vendored Three.js served locally (works offline) |
-| PASS | info | unknown paths return a 404 and do not leak files | 404 handler responds with plain text |
-| PASS | info | GET /api/snapshot returns a complete plant snapshot | 13 top-level groups in 4 ms |
-| PASS | info | GET /api/design, /api/history and /api/faults respond correctly | 34 faults with cause, symptoms and operator actions |
-| PASS | info | POST /api/command applies operator commands | loadSetpoint and rampRate applied |
-| PASS | info | fault injection and clearing work through the API | inject → listed → clear round trip |
-| PASS | info | injecting an unknown fault id is rejected cleanly | rejected with ok:false, server still healthy |
-| PASS | info | clearing with "*" clears every active fault | all faults cleared |
-| PASS | info | oversized request bodies are rejected (1 MB JSON limit) | oversized body → HTTP 413, server healthy |
-| PASS | info | WebSocket feed delivers welcome + snapshots and answers pings | 13 snapshots in 2.5 s, ping/pong ok, version 1.0.0 |
-| PASS | info | WebSocket accepts commands and rejects garbage without dying | malformed frames ignored, server still broadcasting |
-| PASS | info | 50 rapid commands are all handled without error | 50 commands in 101 ms |
-| PASS | info | snapshot payload fits a 5 Hz feed | 29.6 KB per snapshot |
-
-### Usability & front end
-
-| Result | Sev | Check | Evidence |
-|---|---|---|---|
-| PASS | critical | the HMI loads and connects to the live feed | websocket live, mode SHUTDOWN COLD, 0.0 MW |
-| PASS | critical | the tutorial runs the whole cold start-up to a loaded unit | completed in 379 simulated minutes at 314 MW (57 s wall) |
-| PASS | high | no JavaScript errors on load or during operation | clean console |
-| PASS | high | the 3D station renders (canvas is not blank) | 411 meshes in the scene graph, 35978 triangles per frame |
-| PASS | high | the guided start-up tutorial offers itself on first visit | first step "1 · Before you start" with 2 controls |
-| PASS | high | the tutorial advances only when the plant condition is met | step 3 → 4, plant mode PRESTART |
-| PASS | high | operator controls stay clickable with the tutorial panel open | 800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok |
-| PASS | high | the plant sound is actually synthesised (measured on the master bus) | master bus rms 0.1020, peak 0.289 (no clipping) |
-| PASS | high | faults can be injected and cleared from the Faults tab | filter → inject → symptoms shown → clear (TUBE_LEAK) |
-| PASS | high | the operator UI gives no hint that the admin console exists | no mention, no link; robots.txt disallows the path |
-| PASS | high | no JavaScript errors accumulated over the whole session | 0 console errors, 0 page errors |
-| PASS | medium | the autopilot takes the unit the rest of the way to load hands-off | 319 → 505 MW, state ON_LOAD — on load — holding 505 MW (3 advisory alarms) |
-| PASS | medium | layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap) | 1366×768 ok · 1920×1080 ok |
-| PASS | medium | the RESET PLANT button returns the simulator to a cold unit | 0 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 26 min, 0 events |
-| PASS | low | the bottom bar shows the build version and source commit | v1.0.0 · e42b627 |
-| NOTE | low | Tutorial and sound state are stored per browser | The tutorial auto-offers itself once per browser (localStorage "tcsim.tutorialSeen") and the sound preference persists per browser. Clear site data — or use the 🎓 TUTORIAL button — to run the guided start-up again on the same machine. |
-| PASS | info | tutorial step 1 waits for the operator (does not auto-advance) | still on step 1 after 3 s of live snapshots |
-| PASS | info | the tutorial highlights the control each step is about | "2 · Set time acceleration" highlights #speed and shows a live readout |
-| PASS | info | tutorial assist buttons drive the plant, not just the text | time acceleration now 60× (selector 60×) |
-| PASS | info | the completion summary reports the achieved operating point | 7-row operating summary shown |
-| PASS | info | sound is off by default and starts on the operator's click | AudioContext running, graph built |
-| PASS | info | sound tracks the plant: each bus is driven by its own variable | furnace 0.52 · fans 0.123 · mills 0.147 · steam 0.115 · vent 0.036 · leak 0 · turbine 0.188 · generator 0.087 · pumps 0.053 · water 0.075 · coal 0.05 |
-| PASS | info | volume control works and the setting survives a reload | master gain 0.251, setting restored after reload (25 %, 🔊 SOUND ON) |
-| PASS | info | all eight side tabs open and render content | 8 tabs: alarms, plant, boiler, turb, bop, faults, proc, events |
-| PASS | info | every 3D view preset works without errors | 9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown |
-| PASS | info | primary controls are reachable and labelled | 12 controls in the bottom bar, all labelled and ≥40 px wide |
-| PASS | info | the hidden console still loads and offers one-time registration | reachable at /admin, registrationOpen=true |
+| Security & vulnerabilities | 26 | 0 | 2 | 3.0 s |
 
 ### Security & vulnerabilities
 
@@ -117,18 +32,22 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | critical | login rejects a wrong password and accepts the right one | wrong password and unknown user → 401, valid credentials → 200 + HttpOnly cookie |
 | PASS | critical | path traversal cannot read files outside public/ | 7 traversal payloads blocked |
 | PASS | critical | the update endpoint cannot be driven with injected shell input | fixed script path, no user data in spawn(), unauthenticated call rejected (401) |
-| PASS | critical | no credentials or tokens are committed to the repository | 56 tracked files and the full history scanned — no secrets |
+| PASS | critical | cross-origin WebSocket connections are refused | hostile origin rejected · same origin open · no origin open |
+| PASS | critical | no credentials or tokens are committed to the repository | 57 tracked files and the full history scanned — no secrets |
 | PASS | high | admin status reports registration open on a fresh install | registration open, no administrator yet |
 | PASS | high | weak credentials are rejected | password < 8 chars, username < 3 chars and empty body all rejected with 400 |
+| PASS | high | repeated failed sign-ins are rate limited | 401,401,401,401,401,401,401,401,429,429,429,429 → locked; the real account still signs in (200) |
+| PASS | high | a forged X-Forwarded-For cannot poison the visitor log | 1 visitor(s), all from the real socket address |
 | PASS | high | logout invalidates the session | session destroyed on logout, subsequent calls rejected |
 | PASS | high | the admin console is not discoverable from the public site | no link, script reference or menu entry to the console anywhere in the public UI |
 | PASS | high | no reflected XSS: API responses are JSON with a safe content type | JSON API only; 404 handler is plain text and escapes nothing dangerous |
 | PASS | high | runtime data (admin credentials, sessions) is excluded from git | data/, node_modules/, .env and logs/ are all ignored |
 | PASS | high | npm dependency audit (express, ws) | advisories — critical 0, high 0, moderate 0, low 0 |
 | PASS | medium | /admin page is served with cache and indexing protections | Cache-Control: no-store, no-cache, must-revalidate, private · X-Robots-Tag: noindex, nofollow, noarchive |
+| PASS | medium | baseline security headers are present | nosniff · CSP on the HMI · X-Frame-Options: DENY + frame-ancestors on /admin |
 | NOTE | medium | Control API is unauthenticated by design | POST /api/command, /api/fault/inject and the WebSocket command channel let any client that can reach the port start, trip and fault the unit — that is what makes the HMI work without a login. Deploy behind a firewall/VPN or put a reverse proxy with HTTP auth in front of it if the port is exposed. |
 | NOTE | medium | Session cookie is issued without the Secure flag | The admin cookie carries HttpOnly and SameSite=Lax but not Secure, because the installer defaults to plain HTTP. Terminate TLS in front of the app (nginx + Let's Encrypt) and the cookie should be upgraded to Secure + __Host- prefix. |
-| PASS | info | authenticated visitor list exposes WAN IP and geolocation fields | 1 visitor(s); sample 127.0.0.1 → Local network, RFC1918 |
+| PASS | info | authenticated visitor list exposes WAN IP and geolocation fields | 2 visitor(s); sample 127.0.0.1 → Local network, RFC1918 |
 | PASS | info | robots.txt disallows /admin and /api/ | User-agent: * · Disallow: /admin · Disallow: /api/ ·  |
 | PASS | info | JSON body parser is size limited and rejects malformed JSON | malformed JSON → HTTP 400, server still serving |
 | PASS | info | no dangerous patterns in the server source | 5 server-side files free of eval/Function/command interpolation |

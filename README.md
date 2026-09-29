@@ -235,6 +235,22 @@ Served only at **`/admin`**. It is *not* linked from the simulator, is excluded 
 
 ![Administration console — visitors and updates](docs/11-admin-console.png)
 
+### Deployment hardening
+
+Four environment variables cover the cases where the simulator is not opened
+directly on its own port. None of them is needed for a plain install.
+
+| variable | default | set it when |
+|---|---|---|
+| `TRUST_PROXY` | `0` — forwarded headers ignored | the app sits behind nginx/Apache. The client address is taken from `X-Forwarded-For` only when this is greater than zero; otherwise a visitor could put an invented "WAN IP" in the admin visitor list and make the server geolocate whatever address they chose. Set it to the number of proxy hops (usually `1`). |
+| `ALLOWED_ORIGINS` | empty | a reverse proxy serves the console under a different host name than the one it forwards to. WebSocket connections are refused from any origin that is not the `Host` the request arrived on, so without this the live feed shows *offline — retrying*. Comma-separated origins, e.g. `http://simulator.plant.local,https://simulator.plant.local`. |
+| `ALLOW_IFRAMING` | unset — `/admin` refuses to be framed | you embed the admin console in a dashboard. Set `ALLOW_IFRAMING=1`. |
+| `HTTPS` | — | nothing to set. `Strict-Transport-Security` is sent automatically as soon as the request arrives over TLS (`req.secure`, or `X-Forwarded-Proto: https` from your proxy). |
+
+Failed admin sign-ins are limited to **8 attempts per username and address**,
+after which that pair is refused for **15 minutes**. The lockout is time-boxed
+and clears itself — it can never become a lockout an operator cannot get past.
+
 ---
 
 ## Screenshots

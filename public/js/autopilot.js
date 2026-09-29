@@ -7,11 +7,16 @@
  * pushes load into an alarm, and it hands control straight back to the operator
  * the moment the unit trips.
  *
- *   SHUTDOWN COLD / PRESTART   issue START, raise the time acceleration
- *   PURGE … SYNCHRONISING      hands off, the sequencer drives the run-up
- *   LOADING / ONLINE           load to the target at 6 MW/min
- *   any alarm                  freeze the load where it is and report
- *   MFT or turbine trip        disengage immediately and say why
+   *   SHUTDOWN COLD / PRESTART   issue START, raise the time acceleration
+   *   PURGE … SYNCHRONISING      hands off, the sequencer drives the run-up
+   *   LOADING / ONLINE           load to the target at 6 MW/min
+   *   any alarm                  freeze the load where it is and report
+   *   MFT or turbine trip        refuse to engage, or disengage, and say why
+   *
+   * `update()` can end the engagement on its own — a trip, a latched MFT. When
+   * it does, `onChange` must fire so the button stops claiming to be ON: an
+   * earlier build left the label reading AUTOPILOT ON with `active === false`,
+   * which made the button look broken and un-clickable.
  *
  * Two numbers come straight out of the physics testing carried out on this
  * build, so they are not arbitrary:
@@ -35,6 +40,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const HOLD_PRIORITIES = new Set(['HIGH', 'CRITICAL']);
 /** Below this load, economiser steaming is a normal low-load condition. */
 const LOW_LOAD_STEAMING_MW = 265;
+/** Phases in which the unit is coming *down*, so the autopilot must wait. */
+const SHUTDOWN_PHASES = new Set(['UNLOADING', 'FIREDOWN', 'COASTDOWN', 'TURNING_GEAR']);
 
 export class Autopilot {
   /**
@@ -44,13 +51,17 @@ export class Autopilot {
    * @param {(mw:number,ramp:number)=>void} opts.setLoad   load setpoint + ramp
    * @param {(name:string)=>void} [opts.sfx]               sound effect hook
    * @param {HTMLElement} [opts.el]                        status readout element
+   * @param {()=>void} [opts.onChange]                     fired whenever the
+   *        engagement changes, including when the autopilot ends it itself
    */
-  constructor({ cmd, setSpeed, setLoad, sfx, el }) {
+  constructor({ cmd, setSpeed, setLoad, sfx, el, onChange }) {
     this.cmd = cmd;
     this.setSpeed = setSpeed;
     this.setLoad = setLoad;
     this.sfx = sfx || (() => {});
     this.el = el || null;
+    this.onChange = onChange || (() => {});
+    this.last = null;      // most recent snapshot, for the engage-time guard
 
     this.active = false;
     this.target = 500;      // MW — see the header note
@@ -66,14 +77,43 @@ export class Autopilot {
 
   get running() { return this.active; }
 
+  /** Tell the HMI that the engagement changed, so the button cannot lie. */
+  changed() { try { this.onChange(); } catch (e) { /* never break the run */ } }
+
+  /**
+   * Why the autopilot cannot be engaged right now, or null if it can.
+   * Checked before engaging so the operator gets a reason instead of a button
+   * that flips on and immediately back off again.
+   */
+  blockReason(s) {
+    if (!s || !s.protection) return null;
+    const mft = s.protection.mft || {};
+    const tt = s.protection.turbineTrip || {};
+    if (mft.latched) return `cannot engage — MFT latched (${mft.cause || 'reset the MFT relays first'})`;
+    if (tt.latched) return `cannot engage — turbine trip latched (${tt.cause || 'reset first'})`;
+    if (s.meta && s.meta.mode === 'TRIPPED') return 'cannot engage — unit is tripped, reset the MFT relays first';
+    return null;
+  }
+
+  /** Engage. Returns false, with `note` set, when the plant cannot take it. */
   enable() {
-    if (this.active) return;
+    if (this.active) return false;
+    const blocked = this.blockReason(this.last);
+    if (blocked) {
+      this.state = 'OFF';
+      this.note = blocked;
+      this.paint();
+      this.changed();
+      return false;
+    }
     this.active = true;
     this.state = 'STARTING';
     this.prevSpeed = null;
     this.lastCmdSimTime = -1e9;
     this.sfx('chime');
     this.paint();
+    this.changed();
+    return true;
   }
 
   disable(reason) {
@@ -84,9 +124,15 @@ export class Autopilot {
     if (this.prevSpeed !== null) { this.setSpeed(this.prevSpeed); this.prevSpeed = null; }
     this.note = reason || 'disengaged';
     this.paint();
+    this.changed();
   }
 
-  toggle() { this.active ? this.disable() : this.enable(); }
+  /** @param {object} [s] the current snapshot, used to vet the engagement. */
+  toggle(s) {
+    if (s) this.last = s;
+    if (this.active) { this.disable(); return false; }
+    return this.enable();
+  }
 
   /** Rate-limit outgoing commands to one every `everySec` seconds of sim time. */
   throttled(fn, simTime, everySec) {
@@ -96,7 +142,9 @@ export class Autopilot {
   }
 
   update(s) {
-    if (!this.active || !s) return;
+    if (!s) return;
+    this.last = s;
+    if (!this.active) return;
 
     const prot = s.protection || {};
     const mft = prot.mft || {};
@@ -127,8 +175,16 @@ export class Autopilot {
     }
 
     if (mode !== 'LOADING' && mode !== 'ONLINE') {
-      this.state = 'RUNNING_UP';
-      this.note = `running up — ${mode.replace(/_/g, ' ').toLowerCase()}`;
+      // While the unit is coming down the autopilot must not quietly start it
+      // again, and it must not sit there looking inert either — say what it is
+      // waiting for.
+      if (SHUTDOWN_PHASES.has(mode)) {
+        this.state = 'WAITING';
+        this.note = `waiting — shutdown in progress (${mode.replace(/_/g, ' ').toLowerCase()}), re-engage when cold`;
+      } else {
+        this.state = 'RUNNING_UP';
+        this.note = `running up — ${mode.replace(/_/g, ' ').toLowerCase()}`;
+      }
       this.paint();
       return;
     }

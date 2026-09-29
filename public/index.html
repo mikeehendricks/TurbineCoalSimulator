@@ -59,7 +59,10 @@
   button.btn.primary{background:#0b4b6b;border-color:#1d7ea8;color:#eaf7ff}
   button.btn.warn{background:#4a2a10;border-color:#8a5a1e;color:#ffe6c2}
   button.btn.danger{background:#5a1414;border-color:#a33;color:#ffdede}
+  button.btn.ok{background:#0f3d22;border-color:#2c8f52;color:#d6ffe6}
   button.btn:disabled{opacity:.4;cursor:not-allowed}
+  @keyframes tcsimflash{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px rgba(255,120,60,.55)}}
+  button.btn.flash{animation:tcsimflash .3s ease-in-out 3}
   select,input{background:#0d1621;border:1px solid var(--line);color:var(--txt);
     padding:5px 7px;border-radius:5px;font-family:var(--mono);font-size:12px}
 
@@ -242,7 +245,7 @@
         <button class="btn" id="btnReset">↺ RESET MFT</button>
         <!-- min-width keeps the button the same size when it arms, so the
              confirming click cannot miss because the bar reflowed -->
-        <button class="btn" id="btnResetPlant" style="min-width:148px;text-align:center"
+        <button class="btn" id="btnResetPlant" style="min-width:186px;text-align:center"
                 title="Return the simulator to a cold, stopped unit — clears faults, trips, load, the event journal and the plant clock">⟲ RESET PLANT</button>
         <span style="color:var(--dim)">|</span>
         <button class="btn" id="btnTutorial">🎓 TUTORIAL</button>
@@ -362,5 +365,38 @@
 }
 </script>
 <script type="module" src="/js/app.js"></script>
+<script>
+/* Boot watchdog -----------------------------------------------------------
+ * app.js is an ES module that pulls in Three.js. If it fails to load — a
+ * cached copy from an older build, a missing vendored library, a browser
+ * without import-map support — every control still renders from the HTML but
+ * has no handler behind it, so the console looks fine and nothing responds.
+ * That failure used to be silent. Say so instead. */
+(function () {
+  function banner() {
+    if (window.__tcsim) return;
+    var d = document.createElement('div');
+    d.id = 'bootfail';
+    d.innerHTML = '<b>The operator console did not start.</b> '
+      + 'The page is running files that do not match this server. '
+      + 'Hard-reload with <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd> '
+      + '(Mac: <kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>R</kbd>), or '
+      + '<button id="bootfailReload" type="button">reload without cache</button>';
+    document.body.appendChild(d);
+    document.getElementById('bootfailReload').onclick = function () {
+      location.replace('/?_nocache=' + Date.now());
+    };
+  }
+  window.addEventListener('load', function () { setTimeout(banner, 8000); });
+})();
+</script>
+<style>
+  #bootfail{position:fixed;left:50%;top:14px;transform:translateX(-50%);z-index:9999;
+    max-width:min(680px,92vw);background:#3a0f0f;border:1px solid #a33;color:#ffdede;
+    padding:11px 14px;border-radius:7px;font-family:var(--mono);font-size:12.5px;line-height:1.55}
+  #bootfail kbd{background:#1a0d0d;border:1px solid #a33;border-radius:3px;padding:0 4px}
+  #bootfail button{margin-left:6px;background:#5a1414;border:1px solid #a33;color:#ffdede;
+    border-radius:5px;padding:4px 9px;cursor:pointer;font-family:var(--mono);font-size:12px}
+</style>
 </body>
 </html>

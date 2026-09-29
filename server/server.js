@@ -107,11 +107,23 @@ const visitors = new Map();       // id -> visitor record
 const geoCache = new Map();       // ip -> geo record
 let geoBusy = false;
 
+// How many reverse-proxy hops to trust for the client address. 0 (the default)
+// means never trust X-Forwarded-For, because any client can set it: a forged
+// header used to put an invented "WAN IP" in the admin visitor list, complete
+// with a geolocation lookup the attacker chose. Set TRUST_PROXY=1 when the app
+// really does sit behind nginx/Apache on the same host.
+const TRUST_PROXY = Math.max(0, Number(process.env.TRUST_PROXY || 0) | 0);
+
 function clientIp(req) {
-  if (req.headers['x-forwarded-for']) {
-    return String(req.headers['x-forwarded-for']).split(',')[0].trim();
+  if (TRUST_PROXY > 0) {
+    const fwd = req.headers['x-forwarded-for'];
+    if (fwd) {
+      // Right-most entries are appended by our own proxies, so count back.
+      const parts = String(fwd).split(',').map((x) => x.trim()).filter(Boolean);
+      if (parts.length) return parts[Math.max(0, parts.length - TRUST_PROXY)];
+    }
+    if (req.headers['x-real-ip']) return String(req.headers['x-real-ip']);
   }
-  if (req.headers['x-real-ip']) return String(req.headers['x-real-ip']);
   return req.socket.remoteAddress || '';
 }
 function normaliseIp(ip) {
@@ -421,20 +433,49 @@ adminApi.post('/register', (req, res) => {
   res.json({ ok: true, username: adminState.user.username });
 });
 
+// Brute-force protection. The password is scrypt, which is slow by design, but
+// nothing stopped an attacker from trying forever. The lockout is time-boxed —
+// it expires on its own — precisely so that it can never become the permanent,
+// unrecoverable lockout an operator cannot get past.
+const LOGIN_MAX_FAILS = 8;
+const LOGIN_LOCK_MS = 15 * 60 * 1000;
+const loginFails = new Map();     // "user|ip" -> { n, until }
+
 adminApi.post('/login', (req, res) => {
   // Trim the username: a stray space from autofill or a password manager is the
   // classic cause of a lockout that looks like a forgotten password.
   const uname = String((req.body || {}).username || '').trim();
   const { password } = req.body || {};
   if (!adminState.registered) return res.status(403).json({ ok: false, error: 'No administrator registered.' });
+
+  const key = `${uname}|${req.ip || '?'}`;
+  const rec = loginFails.get(key);
+  if (rec && rec.until > Date.now()) {
+    const mins = Math.ceil((rec.until - Date.now()) / 60000);
+    return res.status(429).json({
+      ok: false,
+      error: `Too many failed sign-in attempts. Try again in ${mins} minute${mins === 1 ? '' : 's'}.`,
+    });
+  }
+  if (rec && rec.until <= Date.now()) loginFails.delete(key);
+
   const knownUser = uname === adminState.user.username;
   if (!knownUser || !verifyPassword(password, adminState.user)) {
+    const n = (rec ? rec.n : 0) + 1;
+    if (n >= LOGIN_MAX_FAILS) {
+      loginFails.set(key, { n, until: Date.now() + LOGIN_LOCK_MS });
+      console.log(`[admin] sign-in locked for 15 min after ${n} failures — ${key}`);
+    } else {
+      loginFails.set(key, { n, until: 0 });
+    }
     // Say which half failed, so the journal shows whether to hunt for a typo in
     // the name or the password. The password itself is never logged.
     console.log(`[admin] failed sign-in from ${req.ip || '?'} — username ${JSON.stringify(uname)} `
-      + `${knownUser ? 'matches an account, so the password is wrong' : 'does not match any account'}`);
+      + `${knownUser ? 'matches an account, so the password is wrong' : 'does not match any account'}`
+      + ` (attempt ${n} of ${LOGIN_MAX_FAILS})`);
     return res.status(401).json({ ok: false, error: 'Invalid credentials.' });
   }
+  loginFails.delete(key);
   const token = newToken();
   adminState.sessions[token] = {
     username: adminState.user.username,
@@ -505,6 +546,26 @@ adminApi.get('/system', (req, res) => {
   });
 });
 
+// Baseline response hardening. A Content-Security-Policy is set on pages, not
+// on assets, and deliberately omits frame-ancestors so an operator dashboard
+// may still embed the HMI — the hidden admin console sets its own, stricter,
+// policy above.
+app.use((req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Cross-Origin-Opener-Policy', 'same-origin');
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.set('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+  }
+  if (/\.html?$/.test(req.path) || req.path === '/' || req.path === ADMIN_PATH) {
+    res.set('Content-Security-Policy',
+      "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; "
+      + "img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; "
+      + "media-src 'self' blob:; object-src 'none'; base-uri 'self'");
+  }
+  next();
+});
+
 app.use('/api/admin', adminApi);
 
 /* -------------------- hidden admin console page -------------------- */
@@ -514,6 +575,12 @@ app.get([ADMIN_PATH, `${ADMIN_PATH}/`], (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
   res.set('Referrer-Policy', 'no-referrer');
+  // The console is the one page worth clicking: it holds the visitor list and
+  // the update control. Set ALLOW_IFRAMING=1 to embed it in a dashboard.
+  if (process.env.ALLOW_IFRAMING !== '1') {
+    res.set('X-Frame-Options', 'DENY');
+    res.set('Content-Security-Policy', "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+  }
   res.sendFile(path.join(PUBLIC, 'admin.html'));
 });
 
@@ -555,7 +622,35 @@ app.use((req, res) => {
  *  WebSocket
  * ================================================================== */
 const server = http.createServer(app);
-const wss = new WebSocketServer({ server, path: '/ws' });
+// Cross-site WebSocket hijacking: the plant control channel is deliberately
+// unauthenticated, so without an origin check ANY page the operator happens to
+// visit could open a socket to this port and trip the unit. Browsers always
+// send Origin; non-browser clients (the test harness, wscat, curl) do not, and
+// are still allowed.
+const ALLOWED_ORIGINS = String(process.env.ALLOWED_ORIGINS || '')
+  .split(',').map((x) => x.trim().toLowerCase()).filter(Boolean);
+
+function originAllowed(req) {
+  const origin = req.headers.origin;
+  if (!origin) return true;                       // not a browser
+  let o;
+  try { o = new URL(origin); } catch { return false; }
+  const host = String(req.headers.host || '').toLowerCase();
+  if (o.host === host) return true;               // same origin
+  // localhost / 127.0.0.1 on any port: the console is often opened that way
+  if (o.hostname === 'localhost' || o.hostname === '127.0.0.1') return true;
+  return ALLOWED_ORIGINS.includes(o.origin.toLowerCase());
+}
+
+const wss = new WebSocketServer({
+  server,
+  path: '/ws',
+  verifyClient: (info, done) => {
+    if (originAllowed(info.req)) return done(true);
+    console.log(`[ws] rejected cross-origin connection from Origin: ${info.req.headers.origin}`);
+    done(false, 403, 'Forbidden origin');
+  },
+});
 
 function broadcast(obj) {
   const msg = JSON.stringify(obj);
