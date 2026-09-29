@@ -144,7 +144,8 @@ function apply(restart) {
   console.log('');
   if (behind < 0) {
     console.log('UNKNOWN — this installation carries no build stamp, so it cannot be compared with GitHub.');
-    console.log('Run:  node tools/update.js apply --restart   to deploy the current build (v' + (remote.tag || remote.sha) + ')');
+    const label = remote.tag || `v${pkg.version}`;
+    console.log(`Run:  node tools/update.js apply --restart   to deploy the current build (${label})`);
   } else if (available) {
     console.log(`UPDATE AVAILABLE (${behind} commit${behind === 1 ? '' : 's'} behind) — apply with:  node tools/update.js apply --restart`);
     console.log('   (or press "Update Now" on the hidden admin page)');
