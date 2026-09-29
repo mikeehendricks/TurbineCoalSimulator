@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-09-28T12:32:22.168Z",
+  "generatedAt": "2026-09-29T00:45:05.215Z",
   "version": "1.0.0",
-  "head": "fd42538",
+  "head": "e42b627",
   "suites": [
     {
       "key": "sim",
@@ -378,7 +378,7 @@
       "result": {
         "suite": "Usability & front-end",
         "category": "usability",
-        "durationMs": 339975,
+        "durationMs": 288254,
         "tests": [
           {
             "name": "the HMI loads and connects to the live feed",
@@ -386,7 +386,7 @@
             "severity": "critical",
             "status": "pass",
             "detail": "websocket live, mode SHUTDOWN COLD, 0.0 MW",
-            "ms": 4618
+            "ms": 4397
           },
           {
             "name": "no JavaScript errors on load or during operation",
@@ -401,8 +401,8 @@
             "category": "usability",
             "severity": "high",
             "status": "pass",
-            "detail": "411 meshes in the scene graph, 35754 triangles per frame",
-            "ms": 292
+            "detail": "411 meshes in the scene graph, 35978 triangles per frame",
+            "ms": 280
           },
           {
             "name": "the guided start-up tutorial offers itself on first visit",
@@ -410,7 +410,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "first step \"1 · Before you start\" with 2 controls",
-            "ms": 296
+            "ms": 246
           },
           {
             "name": "tutorial step 1 waits for the operator (does not auto-advance)",
@@ -418,7 +418,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "still on step 1 after 3 s of live snapshots",
-            "ms": 3111
+            "ms": 3234
           },
           {
             "name": "the tutorial highlights the control each step is about",
@@ -426,7 +426,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "\"2 · Set time acceleration\" highlights #speed and shows a live readout",
-            "ms": 1172
+            "ms": 1304
           },
           {
             "name": "tutorial assist buttons drive the plant, not just the text",
@@ -434,7 +434,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "time acceleration now 60× (selector 60×)",
-            "ms": 1744
+            "ms": 1817
           },
           {
             "name": "the tutorial advances only when the plant condition is met",
@@ -442,15 +442,15 @@
             "severity": "high",
             "status": "pass",
             "detail": "step 3 → 4, plant mode PRESTART",
-            "ms": 3287
+            "ms": 3196
           },
           {
             "name": "the tutorial runs the whole cold start-up to a loaded unit",
             "category": "usability",
             "severity": "critical",
             "status": "pass",
-            "detail": "completed in 1033 simulated minutes at 301 MW (58 s wall)",
-            "ms": 58416
+            "detail": "completed in 379 simulated minutes at 314 MW (57 s wall)",
+            "ms": 57003
           },
           {
             "name": "the completion summary reports the achieved operating point",
@@ -458,23 +458,23 @@
             "severity": "info",
             "status": "pass",
             "detail": "7-row operating summary shown",
-            "ms": 446
+            "ms": 436
           },
           {
             "name": "the autopilot takes the unit the rest of the way to load hands-off",
             "category": "usability",
             "severity": "medium",
             "status": "pass",
-            "detail": "299 → 498 MW, state ON_LOAD — on load — holding 498 MW (3 advisory alarms)",
-            "ms": 53413
+            "detail": "319 → 505 MW, state ON_LOAD — on load — holding 505 MW (3 advisory alarms)",
+            "ms": 11579
           },
           {
             "name": "the bottom bar shows the build version and source commit",
             "category": "usability",
             "severity": "low",
             "status": "pass",
-            "detail": "v1.0.0 · fd42538",
-            "ms": 5731
+            "detail": "v1.0.0 · e42b627",
+            "ms": 4618
           },
           {
             "name": "operator controls stay clickable with the tutorial panel open",
@@ -482,7 +482,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok",
-            "ms": 7798
+            "ms": 7461
           },
           {
             "name": "sound is off by default and starts on the operator's click",
@@ -490,31 +490,31 @@
             "severity": "info",
             "status": "pass",
             "detail": "AudioContext running, graph built",
-            "ms": 2581
+            "ms": 2658
           },
           {
             "name": "the plant sound is actually synthesised (measured on the master bus)",
             "category": "usability",
             "severity": "high",
             "status": "pass",
-            "detail": "master bus rms 0.1158, peak 0.300 (no clipping)",
-            "ms": 17905
+            "detail": "master bus rms 0.1020, peak 0.289 (no clipping)",
+            "ms": 16191
           },
           {
             "name": "sound tracks the plant: each bus is driven by its own variable",
             "category": "usability",
             "severity": "info",
             "status": "pass",
-            "detail": "furnace 0.52 · fans 0.123 · mills 0.147 · steam 0.115 · vent 0.042 · leak 0 · turbine 0.195 · generator 0.09 · pumps 0.053 · water 0.075 · coal 0.05",
-            "ms": 412
+            "detail": "furnace 0.52 · fans 0.123 · mills 0.147 · steam 0.115 · vent 0.036 · leak 0 · turbine 0.188 · generator 0.087 · pumps 0.053 · water 0.075 · coal 0.05",
+            "ms": 298
           },
           {
             "name": "volume control works and the setting survives a reload",
             "category": "usability",
             "severity": "info",
             "status": "pass",
-            "detail": "master gain 0.254, setting restored after reload (25 %, 🔊 SOUND ON)",
-            "ms": 4945
+            "detail": "master gain 0.251, setting restored after reload (25 %, 🔊 SOUND ON)",
+            "ms": 4743
           },
           {
             "name": "all eight side tabs open and render content",
@@ -522,7 +522,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "8 tabs: alarms, plant, boiler, turb, bop, faults, proc, events",
-            "ms": 6954
+            "ms": 6411
           },
           {
             "name": "every 3D view preset works without errors",
@@ -530,7 +530,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown",
-            "ms": 4472
+            "ms": 4278
           },
           {
             "name": "layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap)",
@@ -538,7 +538,7 @@
             "severity": "medium",
             "status": "pass",
             "detail": "1366×768 ok · 1920×1080 ok",
-            "ms": 3502
+            "ms": 3350
           },
           {
             "name": "primary controls are reachable and labelled",
@@ -546,7 +546,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "12 controls in the bottom bar, all labelled and ≥40 px wide",
-            "ms": 541
+            "ms": 414
           },
           {
             "name": "faults can be injected and cleared from the Faults tab",
@@ -554,7 +554,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "filter → inject → symptoms shown → clear (TUBE_LEAK)",
-            "ms": 5484
+            "ms": 4674
           },
           {
             "name": "the operator UI gives no hint that the admin console exists",
@@ -562,7 +562,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "no mention, no link; robots.txt disallows the path",
-            "ms": 990
+            "ms": 1001
           },
           {
             "name": "the hidden console still loads and offers one-time registration",
@@ -570,7 +570,7 @@
             "severity": "info",
             "status": "pass",
             "detail": "reachable at /admin, registrationOpen=true",
-            "ms": 1863
+            "ms": 937
           },
           {
             "name": "the RESET PLANT button returns the simulator to a cold unit",
@@ -578,7 +578,7 @@
             "severity": "medium",
             "status": "pass",
             "detail": "0 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 26 min, 0 events",
-            "ms": 149594
+            "ms": 147321
           },
           {
             "name": "no JavaScript errors accumulated over the whole session",
@@ -586,7 +586,7 @@
             "severity": "high",
             "status": "pass",
             "detail": "0 console errors, 0 page errors",
-            "ms": 0
+            "ms": 1
           },
           {
             "name": "Tutorial and sound state are stored per browser",

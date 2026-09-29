@@ -230,6 +230,9 @@
       <div class="banner trip" id="bTrip">TURBINE TRIP<br><span style="font-size:12px" id="tripWhy"></span></div>
 
       <div id="btmbar">
+        <button class="btn" id="btnAuto" title="Start the unit, run it up and load it hands-off">🤖 AUTOPILOT OFF</button>
+        <span id="autoState" style="font-size:10.5px;color:var(--dim);max-width:150px"></span>
+        <span style="color:var(--dim)">|</span>
         <button class="btn primary" id="btnStart">▶ START UNIT</button>
         <button class="btn warn" id="btnShutdown">■ SHUT DOWN</button>
         <button class="btn danger" id="btnTrip">⚡ TRIP TURBINE</button>
@@ -239,9 +242,6 @@
              confirming click cannot miss because the bar reflowed -->
         <button class="btn" id="btnResetPlant" style="min-width:148px;text-align:center"
                 title="Return the simulator to a cold, stopped unit — clears faults, trips, load, the event journal and the plant clock">⟲ RESET PLANT</button>
-        <span style="color:var(--dim)">|</span>
-        <button class="btn" id="btnAuto" title="Start the unit, run it up and load it hands-off">🤖 AUTOPILOT OFF</button>
-        <span id="autoState" style="font-size:10.5px;color:var(--dim);min-width:190px"></span>
         <span style="color:var(--dim)">|</span>
         <button class="btn" id="btnTutorial">🎓 TUTORIAL</button>
         <span id="snd" title="Plant sound is synthesised live from the model — no audio files">
@@ -270,7 +270,7 @@
           <input id="amb" type="number" min="5" max="45" step="1" value="30" style="width:48px">
           <button class="btn" id="btnAmb">set</button></label>
       
-        <span id="ver" style="margin-left:auto;font-size:10.5px;color:var(--dim);white-space:nowrap"
+        <span id="ver" style="margin-left:auto;font-size:10.5px;color:var(--dim);white-space:nowrap;padding-left:6px"
               title="Simulator build — version and source commit"></span>
       </div>
     </div>

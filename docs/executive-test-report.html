@@ -37,7 +37,7 @@
   @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}</style></head><body><div class="wrap">
 
 <h1>Executive test report</h1>
-<div class="sub">Turbine &amp; coal-fired power plant simulator · version 1.0.0 (fd42538) · Mon, 28 Sep 2026 12:32:22 GMT</div>
+<div class="sub">Turbine &amp; coal-fired power plant simulator · version 1.0.0 (e42b627) · Tue, 29 Sep 2026 00:45:05 GMT</div>
 
 <div class="verdict">
   <div class="v">PASS WITH MINOR FINDINGS</div>
@@ -327,19 +327,19 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="detail">29.6 KB per snapshot</td>
         <td class="n detail">4 ms</td>
       </tr></table>
-<h3>Usability &amp; front end <span class="detail">— 26/26 passed, 340.0 s</span></h3>
+<h3>Usability &amp; front end <span class="detail">— 26/26 passed, 288.3 s</span></h3>
     <table><tr><th style="width:1%">Result</th><th style="width:1%">Severity</th><th>Check</th><th>Evidence</th><th style="width:1%">Time</th></tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>the HMI loads and connects to the live feed</td>
         <td class="detail">websocket live, mode SHUTDOWN COLD, 0.0 MW</td>
-        <td class="n detail">4618 ms</td>
+        <td class="n detail">4397 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>the tutorial runs the whole cold start-up to a loaded unit</td>
-        <td class="detail">completed in 1033 simulated minutes at 301 MW (58 s wall)</td>
-        <td class="n detail">58416 ms</td>
+        <td class="detail">completed in 379 simulated minutes at 314 MW (57 s wall)</td>
+        <td class="n detail">57003 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -350,74 +350,74 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the 3D station renders (canvas is not blank)</td>
-        <td class="detail">411 meshes in the scene graph, 35754 triangles per frame</td>
-        <td class="n detail">292 ms</td>
+        <td class="detail">411 meshes in the scene graph, 35978 triangles per frame</td>
+        <td class="n detail">280 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the guided start-up tutorial offers itself on first visit</td>
         <td class="detail">first step "1 · Before you start" with 2 controls</td>
-        <td class="n detail">296 ms</td>
+        <td class="n detail">246 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the tutorial advances only when the plant condition is met</td>
         <td class="detail">step 3 → 4, plant mode PRESTART</td>
-        <td class="n detail">3287 ms</td>
+        <td class="n detail">3196 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>operator controls stay clickable with the tutorial panel open</td>
         <td class="detail">800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok</td>
-        <td class="n detail">7798 ms</td>
+        <td class="n detail">7461 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the plant sound is actually synthesised (measured on the master bus)</td>
-        <td class="detail">master bus rms 0.1158, peak 0.300 (no clipping)</td>
-        <td class="n detail">17905 ms</td>
+        <td class="detail">master bus rms 0.1020, peak 0.289 (no clipping)</td>
+        <td class="n detail">16191 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>faults can be injected and cleared from the Faults tab</td>
         <td class="detail">filter → inject → symptoms shown → clear (TUBE_LEAK)</td>
-        <td class="n detail">5484 ms</td>
+        <td class="n detail">4674 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the operator UI gives no hint that the admin console exists</td>
         <td class="detail">no mention, no link; robots.txt disallows the path</td>
-        <td class="n detail">990 ms</td>
+        <td class="n detail">1001 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>no JavaScript errors accumulated over the whole session</td>
         <td class="detail">0 console errors, 0 page errors</td>
-        <td class="n detail">0 ms</td>
+        <td class="n detail">1 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
         <td>the autopilot takes the unit the rest of the way to load hands-off</td>
-        <td class="detail">299 → 498 MW, state ON_LOAD — on load — holding 498 MW (3 advisory alarms)</td>
-        <td class="n detail">53413 ms</td>
+        <td class="detail">319 → 505 MW, state ON_LOAD — on load — holding 505 MW (3 advisory alarms)</td>
+        <td class="n detail">11579 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
         <td>layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap)</td>
         <td class="detail">1366×768 ok · 1920×1080 ok</td>
-        <td class="n detail">3502 ms</td>
+        <td class="n detail">3350 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
         <td>the RESET PLANT button returns the simulator to a cold unit</td>
         <td class="detail">0 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 26 min, 0 events</td>
-        <td class="n detail">149594 ms</td>
+        <td class="n detail">147321 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev low">low</span></td>
         <td>the bottom bar shows the build version and source commit</td>
-        <td class="detail">v1.0.0 · fd42538</td>
-        <td class="n detail">5731 ms</td>
+        <td class="detail">v1.0.0 · e42b627</td>
+        <td class="n detail">4618 ms</td>
       </tr><tr>
         <td class="n"><span class="pill note">NOTE</span></td>
         <td class="n"><span class="sev low">low</span></td>
@@ -429,67 +429,67 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>tutorial step 1 waits for the operator (does not auto-advance)</td>
         <td class="detail">still on step 1 after 3 s of live snapshots</td>
-        <td class="n detail">3111 ms</td>
+        <td class="n detail">3234 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>the tutorial highlights the control each step is about</td>
         <td class="detail">"2 · Set time acceleration" highlights #speed and shows a live readout</td>
-        <td class="n detail">1172 ms</td>
+        <td class="n detail">1304 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>tutorial assist buttons drive the plant, not just the text</td>
         <td class="detail">time acceleration now 60× (selector 60×)</td>
-        <td class="n detail">1744 ms</td>
+        <td class="n detail">1817 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>the completion summary reports the achieved operating point</td>
         <td class="detail">7-row operating summary shown</td>
-        <td class="n detail">446 ms</td>
+        <td class="n detail">436 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>sound is off by default and starts on the operator's click</td>
         <td class="detail">AudioContext running, graph built</td>
-        <td class="n detail">2581 ms</td>
+        <td class="n detail">2658 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>sound tracks the plant: each bus is driven by its own variable</td>
-        <td class="detail">furnace 0.52 · fans 0.123 · mills 0.147 · steam 0.115 · vent 0.042 · leak 0 · turbine 0.195 · generator 0.09 · pumps 0.053 · water 0.075 · coal 0.05</td>
-        <td class="n detail">412 ms</td>
+        <td class="detail">furnace 0.52 · fans 0.123 · mills 0.147 · steam 0.115 · vent 0.036 · leak 0 · turbine 0.188 · generator 0.087 · pumps 0.053 · water 0.075 · coal 0.05</td>
+        <td class="n detail">298 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>volume control works and the setting survives a reload</td>
-        <td class="detail">master gain 0.254, setting restored after reload (25 %, 🔊 SOUND ON)</td>
-        <td class="n detail">4945 ms</td>
+        <td class="detail">master gain 0.251, setting restored after reload (25 %, 🔊 SOUND ON)</td>
+        <td class="n detail">4743 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>all eight side tabs open and render content</td>
         <td class="detail">8 tabs: alarms, plant, boiler, turb, bop, faults, proc, events</td>
-        <td class="n detail">6954 ms</td>
+        <td class="n detail">6411 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>every 3D view preset works without errors</td>
         <td class="detail">9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown</td>
-        <td class="n detail">4472 ms</td>
+        <td class="n detail">4278 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>primary controls are reachable and labelled</td>
         <td class="detail">12 controls in the bottom bar, all labelled and ≥40 px wide</td>
-        <td class="n detail">541 ms</td>
+        <td class="n detail">414 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>the hidden console still loads and offers one-time registration</td>
         <td class="detail">reachable at /admin, registrationOpen=true</td>
-        <td class="n detail">1863 ms</td>
+        <td class="n detail">937 ms</td>
       </tr></table>
 <h3>Security &amp; vulnerabilities <span class="detail">— 22/22 passed, 2.2 s</span></h3>
     <table><tr><th style="width:1%">Result</th><th style="width:1%">Severity</th><th>Check</th><th>Evidence</th><th style="width:1%">Time</th></tr><tr>
@@ -677,7 +677,7 @@ node tools/test-api.js          # API only      (~5 s)
 node tools/test-ui.js           # usability     (~4 min, needs the server on :8080)
 node tools/test-security.js     # security      (~3 s)
 node tools/loadtest.js --target=660 --ramp=4    # load-ramp harness</code></pre>
-<p class="detail">Environment: Ubuntu Linux, Node.js 20.20.2, Express 4.22.3, ws 8.22.0; headless Chrome for the usability suite.</p>
+<p class="detail">Environment: Ubuntu Linux, Node.js 20.20.2, Express 4.22.3, ws 8.21.3; headless Chrome for the usability suite.</p>
 
-<div class="foot">Generated 2026-09-28T12:32:22.168Z by tools/report.js from docs/test-results.json · turbine-coal-simulator 1.0.0</div>
+<div class="foot">Generated 2026-09-29T00:45:05.215Z by tools/report.js from docs/test-results.json · turbine-coal-simulator 1.0.0</div>
 </div></body></html>

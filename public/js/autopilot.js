@@ -166,7 +166,14 @@ export class Autopilot {
 
   paint() {
     if (!this.el) return;
-    this.el.textContent = this.active ? `AUTOPILOT · ${this.note}` : `autopilot ${this.note}`;
+    const text = this.active ? `AUTOPILOT · ${this.note}` : `autopilot ${this.note}`;
+    this.el.textContent = text;
+    // Keep the readout to one line: a second line pushes the bottom bar onto
+    // another row, which is how an operator loses sight of the button itself.
+    this.el.style.whiteSpace = 'nowrap';
+    this.el.style.overflow = 'hidden';
+    this.el.style.textOverflow = 'ellipsis';
+    this.el.title = text;
   }
 
   /** Target and ramp can be adjusted from the console: __tcsim.autopilot.target */
