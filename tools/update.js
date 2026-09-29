@@ -42,7 +42,17 @@ function git(args) {
 }
 
 function localVersion() {
-  return { version: pkg.version, commit: git(['rev-parse', '--short=12', 'HEAD']), branch: git(['rev-parse', '--abbrev-ref', 'HEAD']) };
+  let commit = git(['rev-parse', '--short=12', 'HEAD']) || '';
+  let branch = git(['rev-parse', '--abbrev-ref', 'HEAD']) || BRANCH;
+  let source = 'git';
+  if (!commit) {
+    // A plain install (no .git): the deployed build is recorded in build.json.
+    try {
+      const stamp = JSON.parse(fs.readFileSync(path.join(ROOT, 'build.json'), 'utf8'));
+      if (stamp && stamp.commit) { commit = String(stamp.commit); branch = stamp.branch || branch; source = 'build.json'; }
+    } catch { /* unknown */ }
+  }
+  return { version: pkg.version, commit, branch, source };
 }
 
 async function remoteVersion() {
@@ -117,7 +127,11 @@ function apply(restart) {
   let ahead = 0, behind = 0;
   const counts = git(['rev-list', '--left-right', '--count', `origin/${BRANCH}...HEAD`]);
   if (counts) { const m = counts.split(/\s+/); behind = parseInt(m[0], 10) || 0; ahead = parseInt(m[1], 10) || 0; }
-  else { behind = !!remote.sha && !!local.commit && !remote.sha.startsWith(local.commit.slice(0, 12)) ? 1 : 0; }
+  else if (!local.commit) {
+    // No idea what is installed: say so rather than reporting "up to date",
+    // which is how an out-of-date install went unnoticed for weeks.
+    behind = -1;
+  } else { behind = !!remote.sha && !remote.sha.startsWith(local.commit.slice(0, 12)) ? 1 : 0; }
   const tagBehind = !!remote.tag && remote.tag !== `v${local.version}`;
   const available = behind > 0 || (tagBehind && ahead === 0);
 
@@ -128,7 +142,10 @@ function apply(restart) {
   console.log(`              ${remote.author || ''}`);
   console.log(`              ${remote.url}`);
   console.log('');
-  if (available) {
+  if (behind < 0) {
+    console.log('UNKNOWN — this installation carries no build stamp, so it cannot be compared with GitHub.');
+    console.log('Run:  node tools/update.js apply --restart   to deploy the current build (v' + (remote.tag || remote.sha) + ')');
+  } else if (available) {
     console.log(`UPDATE AVAILABLE (${behind} commit${behind === 1 ? '' : 's'} behind) — apply with:  node tools/update.js apply --restart`);
     console.log('   (or press "Update Now" on the hidden admin page)');
   } else if (ahead > 0) {

@@ -158,6 +158,19 @@ else
   rm -rf "$APP_DIR.new"
 fi
 mkdir -p "$APP_DIR/data" "$APP_DIR/logs"
+
+# Record which build was deployed. Without a .git directory there is no other
+# way to tell, and the footer stamp and update check both depend on it.
+DEPLOY_COMMIT=""
+if [ -d "$SRC_DIR/.git" ]; then DEPLOY_COMMIT="$(git -C "$SRC_DIR" rev-parse HEAD 2>/dev/null || true)"; fi
+(cd "$APP_DIR" && node -e '
+const fs = require("fs");
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const stamp = { version: pkg.version, commit: process.argv[1] || null, branch: process.argv[2],
+                method: "install", updatedAt: new Date().toISOString() };
+fs.writeFileSync("build.json.tmp", JSON.stringify(stamp, null, 2));
+fs.renameSync("build.json.tmp", "build.json");
+' "$DEPLOY_COMMIT" "$BRANCH") || warn "could not write the build stamp"
 ok "files deployed"
 
 # --------------------------------------------------------------------------

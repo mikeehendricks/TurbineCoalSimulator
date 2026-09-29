@@ -56,14 +56,24 @@ function writeJson(file, obj) {
 /** Version of the running code, as reported by git when available. */
 function localVersion() {
   let commit = null;
+  let source = 'git';
   try {
     commit = require('child_process')
       .execSync('git rev-parse --short HEAD', { cwd: ROOT, stdio: ['ignore', 'pipe', 'ignore'] })
       .toString().trim();
   } catch { commit = null; }
+  // Installs made by install.sh have no .git, so the deployed build is recorded
+  // in build.json by scripts/update.sh instead.
+  if (!commit) {
+    try {
+      const stamp = JSON.parse(require('fs').readFileSync(path.join(ROOT, 'build.json'), 'utf8'));
+      if (stamp && stamp.commit) { commit = String(stamp.commit).slice(0, 7); source = 'build.json'; }
+    } catch { /* no stamp either */ }
+  }
   return {
     version: PKG.version,
     commit,
+    source,
     name: PKG.name,
     description: PKG.description || '',
   };
