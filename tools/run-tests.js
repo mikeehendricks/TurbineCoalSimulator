@@ -52,7 +52,12 @@ function runOne(suite, group = '') {
     // The UI suite drives a real browser through a whole cold start-up, so it
     // needs far more than the API and security suites do; a 10-minute cap used
     // to cut it off mid-run, which discarded every result it had collected.
-    const budgetMs = suite.key === 'sim' ? 1800000 : (suite.key === 'ui' ? 1500000 : 600000);
+    // The UI suite drives real starts: a full guided cold start-up (~2 min),
+    // a full hands-off autopilot start (~3.5 min) and a page reload, all
+    // against a live browser on a small box. It ran 28 of its 34 tests before
+    // a 25 min budget killed it, so the budget is now 45 min — a truncated
+    // suite is worse than a slow one, because it looks like a pass.
+    const budgetMs = suite.key === 'sim' ? 1800000 : (suite.key === 'ui' ? 2700000 : 600000);
     const kill = setTimeout(() => child.kill('SIGKILL'), budgetMs);
     child.on('close', (code) => {
       clearTimeout(kill);
