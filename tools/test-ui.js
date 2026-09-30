@@ -612,6 +612,38 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
 
   // Placed here, not with the other autopilot tests: latching the MFT trips
   // the unit, and the sound test above needs the machine at load.
+  await s.test('the admin console is styled, not stripped by its own CSP', async () => {
+    // Regression, and self-inflicted: tightening the Content-Security-Policy on
+    // /admin to default-src 'self' — with no 'unsafe-inline' for styles — made
+    // the browser discard the page's entire <style> block. The console still
+    // loaded, still worked, and looked completely broken: 0 style rules, Times
+    // New Roman on a white background. Functional tests all passed, because the
+    // DOM is fine; only the rendering was destroyed. So measure the rendering.
+    const p3 = await browser.newPage();
+    const violations = [];
+    p3.on('console', (m) => {
+      if (/Content Security Policy/i.test(m.text())) violations.push(m.text().slice(0, 120));
+    });
+    await p3.goto(BASE + ADMIN, { waitUntil: 'load' });
+    await wait(2500);
+    const r = await p3.evaluate(() => {
+      let rules = 0;
+      for (const st of document.querySelectorAll('style')) {
+        try { rules += st.sheet ? st.sheet.cssRules.length : 0; } catch (e) { /* ignored */ }
+      }
+      const cs = getComputedStyle(document.body);
+      return { rules, font: cs.fontFamily, bg: cs.backgroundColor,
+               text: (document.body.innerText || '').trim().length };
+    });
+    await p3.close();
+    s.assert(violations.length === 0, `CSP violations on /admin: ${violations.slice(0, 2).join(' | ')}`);
+    s.assert(r.rules > 0, 'the stylesheet was thrown away — 0 CSS rules applied');
+    s.assert(/mono|consolas|menlo/i.test(r.font), `unstyled default font is showing: "${r.font}"`);
+    s.assert(r.bg !== 'rgba(0, 0, 0, 0)' && r.bg !== 'rgb(255, 255, 255)',
+      `page background is unset — the theme CSS did not apply (${r.bg})`);
+    return { detail: `${r.rules} CSS rules applied, ${r.font.split(',')[0]}, background ${r.bg}` };
+  }, { severity: 'high' });
+
   await s.test('the autopilot refuses to engage on a latched trip and says why', async () => {
     await page.evaluate(() => { if (window.__tcsim.autopilot.active) window.__tcsim.autopilot.disable(); });
     await wait(400);

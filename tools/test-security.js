@@ -62,7 +62,15 @@ const post = (p, body, opts) => fetch(BASE + p, {
 
   let cookie = null;
   await s.test('first valid registration succeeds and sets an HttpOnly session cookie', async () => {
-    const r = await post('/api/admin/register', { username: 'chiefengineer', password: 'Boiler-Drum-2026!' });
+    // Registration is a check-then-write, so a burst of simultaneous calls is
+    // the obvious way to end up with two administrators. Fire the one attempt
+    // this suite is allowed as twelve concurrent ones: exactly one must win,
+    // and it must be the account the rest of the suite signs in with.
+    const res = await Promise.all(Array.from({ length: 12 }, () =>
+      post('/api/admin/register', { username: 'chiefengineer', password: 'Boiler-Drum-2026!' })));
+    const winners = res.filter((x) => x.status === 200);
+    s.eq(winners.length, 1, `exactly one registration should succeed, ${winners.length} did`);
+    const r = winners[0];
     const j = await r.json();
     s.assert(j.ok, `registration failed: ${j.error}`);
     const setCookie = r.headers.get('set-cookie') || '';
@@ -307,6 +315,31 @@ const post = (p, body, opts) => fetch(BASE + p, {
       '/admin sets no frame-ancestors policy');
     return { detail: 'nosniff · CSP on the HMI · X-Frame-Options: DENY + frame-ancestors on /admin' };
   }, { severity: 'medium' });
+
+  await s.test('CRLF cannot be injected into a response header', async () => {
+    // Response splitting: attacker-controlled text reaching a response header
+    // lets them set headers — or forge a body — in someone else's reply.
+    const net = require('net');
+    const raw = (req) => new Promise((res) => {
+      const sk = net.connect(Number(process.env.PORT), '127.0.0.1', () => sk.write(req));
+      let buf = '';
+      sk.on('data', (d) => { buf += d.toString(); });
+      sk.on('error', () => res('ERR'));
+      sk.on('close', () => res(buf));
+      setTimeout(() => { try { sk.destroy(); } catch (e) {} res(buf || 'TIMEOUT'); }, 3000);
+    });
+    const a = await raw('GET /%0d%0aX-Injected:%20yes HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n');
+    const b = await raw('POST /api/admin/login HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\n'
+      + 'Content-Length: 45\r\nConnection: close\r\n\r\n'
+      + '{"username":"x\r\nX-Injected: yes","password":"y"}');
+    for (const [name, r] of [['path', a], ['login username', b]]) {
+      const head = r.split('\r\n\r\n')[0];
+      s.assert(!/X-Injected/i.test(head), `CRLF via the ${name} reached a response header`);
+    }
+    s.assert(!/Injected/i.test(a.split('\r\n\r\n').slice(1).join('')),
+      'the 404 body reflected the injected content');
+    return { detail: 'CRLF in the path and in the login username both contained' };
+  }, { severity: 'high' });
 
   await s.test('no reflected XSS: API responses are JSON with a safe content type', async () => {
     const r = await post('/api/command', { cmd: '<script>alert(1)</script>', value: '"><img src=x onerror=alert(1)>' });

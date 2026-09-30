@@ -579,9 +579,29 @@ app.get([ADMIN_PATH, `${ADMIN_PATH}/`], (req, res) => {
   // the update control. Set ALLOW_IFRAMING=1 to embed it in a dashboard.
   if (process.env.ALLOW_IFRAMING !== '1') {
     res.set('X-Frame-Options', 'DENY');
-    res.set('Content-Security-Policy', "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'");
+    // Styles are relaxed and nothing else is. This page is hand-written with an
+    // inline <style> block and inline style attributes; a policy of
+    // default-src 'self' alone makes the browser throw the whole stylesheet
+    // away, which is precisely what happened — the console came up unstyled and
+    // unreadable. Scripts stay 'self'-only: no inline script, no inline handler,
+    // no framing, no objects, and connect limited to this origin.
+    res.set('Content-Security-Policy',
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+      + "img-src 'self' data:; connect-src 'self'; font-src 'self' data:; "
+      + "object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   }
   res.sendFile(path.join(PUBLIC, 'admin.html'));
+});
+
+// Browsers ask for this on every page; without it the console logs a 404 on
+// each load, which trains operators to ignore errors in it.
+app.get('/favicon.ico', (req, res) => {
+  res.type('image/svg+xml')
+    .set('Cache-Control', 'public, max-age=604800')
+    .send('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">'
+      + '<rect width="32" height="32" rx="6" fill="#0b131d"/>'
+      + '<path d="M8 22h16M11 22V13M16 22V9M21 22v-9" stroke="#38bdf8" stroke-width="2.5" fill="none" stroke-linecap="round"/>'
+      + '<circle cx="16" cy="7" r="2" fill="#f0b429"/></svg>');
 });
 
 app.get('/robots.txt', (req, res) => {
