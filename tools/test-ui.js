@@ -693,6 +693,13 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     // reset look broken.
     await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     await wait(3500);
+    // Start from a known cold unit. Whatever the previous scenario left behind
+    // - a latched trip, a purge in progress, a load ramp - decided whether the
+    // setup below reached load at all, and on the runs where it did not this
+    // test passed for the wrong reason: it reset an already-cold plant and
+    // reported success for a button it had not really exercised.
+    await page.evaluate(() => window.__tcsim.cmd('resetPlant'));
+    await wait(2500);
     // Put the unit on load with a fault in, so the reset has something to discard.
     await page.evaluate(async () => {
       const post = (u, o) => fetch(u, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(o) });
@@ -701,11 +708,19 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
       await post('/api/command', { cmd: 'loadSetpoint', value: 300 });
       await post('/api/command', { cmd: 'rampRate', value: 6 });
     });
-    for (let i = 0; i < 30; i++) {
+    let loaded = { mw: 0, mode: '?' };
+    for (let i = 0; i < 45; i++) {
       await wait(4000);
-      const mw = await page.evaluate(() => window.__tcsim.state.plant.grossMW || 0);
-      if (mw > 150) break;
+      loaded = await page.evaluate(() => ({
+        mw: window.__tcsim.state.plant.grossMW || 0,
+        mode: window.__tcsim.state.meta.mode,
+      }));
+      if (loaded.mw > 150) break;
     }
+    // Say so when the setup fails: a reset measured on a cold unit proves
+    // nothing, and reporting it as a pass hides the fact.
+    s.assert(loaded.mw > 150,
+      `setup never got the unit on load (${loaded.mw.toFixed(0)} MW, mode ${loaded.mode}) - the reset would prove nothing`);
     await page.evaluate(() => fetch('/api/fault/inject', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: 'TUBE_LEAK', magnitude: 1, boiler: 0 }),
@@ -734,6 +749,7 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
 
     await page.click('#btnResetPlant');
     let after = null;
+    const seen = [];
     for (let i = 0; i < 15; i++) {
       await wait(400);
       after = await page.evaluate(() => ({
@@ -743,9 +759,13 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
         events: (window.__tcsim.state.events || []).length,
         faults: (window.__tcsim.state.faults || []).length,
       }));
+      seen.push(after.mode);
       if (after.mode === 'SHUTDOWN_COLD') break;
     }
-    s.assert(after.mode === 'SHUTDOWN_COLD', `unit is ${after.mode}, not SHUTDOWN COLD after the reset`);
+    // Report the trajectory, not just the last reading: whether the reset was
+    // never applied or was applied and then undone changes where to look.
+    s.assert(after.mode === 'SHUTDOWN_COLD',
+      `unit is ${after.mode}, not SHUTDOWN COLD after the reset (mode went ${before.mode} → ${seen.join(' → ')})`);
     s.assert(after.mw < 1, `unit still making ${after.mw} MW after the reset`);
     return { detail: `${before.mw} MW / ${before.events} events → ${after.mode}, ${after.mw} MW, clock ${after.t} min, ${after.events} events` };
   }, { severity: 'medium' });
