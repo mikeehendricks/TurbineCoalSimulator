@@ -37,15 +37,15 @@
   @media(max-width:760px){.kpis{grid-template-columns:repeat(2,1fr)}}</style></head><body><div class="wrap">
 
 <h1>Executive test report</h1>
-<div class="sub">Turbine &amp; coal-fired power plant simulator · version 1.0.0 (dfdb4df) · Tue, 29 Sep 2026 09:23:51 GMT</div>
+<div class="sub">Turbine &amp; coal-fired power plant simulator · version 1.0.0 (c58ff44) · Wed, 30 Sep 2026 04:20:09 GMT</div>
 
 <div class="verdict">
   <div class="v">PASS WITH MINOR FINDINGS</div>
-  <div>2 low/medium findings raised. 95 of 102 checks passed across 4 suites; 5 observations raised, none of which block training use.</div>
+  <div>2 low/medium findings raised. 97 of 104 checks passed across 4 suites; 5 observations raised, none of which block training use.</div>
 </div>
 
 <div class="kpis">
-  <div class="kpi"><b style="color:var(--pass)">95</b><span>Passed</span></div>
+  <div class="kpi"><b style="color:var(--pass)">97</b><span>Passed</span></div>
   <div class="kpi"><b style="color:var(--fail)">2</b><span>Failed</span></div>
   <div class="kpi"><b style="color:var(--note)">5</b><span>Observations</span></div>
   <div class="kpi"><b>13</b><span>Defects fixed</span></div>
@@ -54,7 +54,7 @@
 <h2>1. Executive summary</h2>
 <p>The simulator was put through a four-part test programme covering <b>physics and plant behaviour</b>,
 <b>API and protocol robustness</b>, <b>usability and the front end</b>, and <b>security and vulnerability</b>.
-102 individual checks were executed in 1364 s of wall time.</p>
+104 individual checks were executed in 1064 s of wall time.</p>
 <p>The build is <b>pass with minor findings</b>: 2 low/medium findings raised. The engine completes a full cold start-up
 (light-off → purge → pressure raising → turbine roll → synchronisation → loading to full output), holds
 steady state, takes every one of the 34 fault scenarios, and shuts the unit down to a boxed-up cold state
@@ -83,31 +83,31 @@ choices, not code defects, and are covered by the recommendations in section 7.<
 (<code>node tools/run-tests.js</code>); the report is regenerated into <code>docs/executive-test-report.html</code>.</p>
 
 <h2>3. Results by suite</h2>
-<h3>Plant model &amp; physics <span class="detail">— 21/23 passed, 1685.2 s</span></h3>
+<h3>Plant model &amp; physics <span class="detail">— 21/23 passed, 1397.5 s</span></h3>
     <table><tr><th style="width:1%">Result</th><th style="width:1%">Severity</th><th>Check</th><th>Evidence</th><th style="width:1%">Time</th></tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>all 34 faults inject, run and clear without breaking the model</td>
         <td class="detail">34 faults injected and cleared cleanly</td>
-        <td class="n detail">115241 ms</td>
+        <td class="n detail">96243 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>no NaN / Infinity anywhere in a full start → load → trip snapshot</td>
         <td class="detail">2000 min simulated, snapshot numerically clean</td>
-        <td class="n detail">191566 ms</td>
+        <td class="n detail">162537 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>loss of all ID fans while fired produces a master fuel trip</td>
         <td class="detail">MFT: All ID fans tripped (peak furnace draft 1.95 kPa)</td>
-        <td class="n detail">51738 ms</td>
+        <td class="n detail">42497 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>loss of condenser vacuum trips the turbine</td>
         <td class="detail">turbine trip: Condenser vacuum low</td>
-        <td class="n detail">65947 ms</td>
+        <td class="n detail">52350 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -119,13 +119,13 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev high">high</span></td>
         <td>normal shutdown runs to SHUTDOWN_COLD through every phase</td>
         <td class="detail">UNLOADING → COASTDOWN → TURNING_GEAR → POST_PURGE → SHUTDOWN_COLD · breaker open, 0 rpm</td>
-        <td class="n detail">26579 ms</td>
+        <td class="n detail">21258 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>boiler tube leak is progressive and detectable by the operator</td>
         <td class="detail">leak 90.0 %, 30.6 t/h, fw−ms -12 t/h (was -33)</td>
-        <td class="n detail">180004 ms</td>
+        <td class="n detail">148631 ms</td>
       </tr><tr>
         <td class="n"><span class="pill note">NOTE</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -149,7 +149,7 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>isentropic expansion 0.8 MPa/300 °C → 10 kPa matches hand calculation</td>
         <td class="detail">h2s=2287 kJ/kg, x=0.876, Δh=763 kJ/kg</td>
-        <td class="n detail">1 ms</td>
+        <td class="n detail">0 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -161,37 +161,37 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>cold start-up runs the whole sequence and synchronises</td>
         <td class="detail">synchronised at 270 min, 22 MW, 3000 rpm</td>
-        <td class="n detail">38633 ms</td>
+        <td class="n detail">31574 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>start-up timings follow a realistic cold-start curve</td>
         <td class="detail">purge 10 min · flame 11 min · roll 209 min · synchronised 270 min</td>
-        <td class="n detail">0 ms</td>
+        <td class="n detail">1 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>drum thermal-stress envelope respected during pressure raising</td>
         <td class="detail">max ΔT 17.4 K, max rate 116 K/h (above 100 °C)</td>
-        <td class="n detail">39079 ms</td>
+        <td class="n detail">29574 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>manual MFT trips the boilers and turbine; reset clears it</td>
         <td class="detail">tripped and reset at 338 min, all fuel off within 2 min</td>
-        <td class="n detail">63644 ms</td>
+        <td class="n detail">50251 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>manual turbine trip opens the breaker and unloads the machine</td>
         <td class="detail">tripped from 0 MW — breaker open, speed falling</td>
-        <td class="n detail">59875 ms</td>
+        <td class="n detail">46678 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>unit loads to 500 MW and holds steady for 60 simulated minutes</td>
         <td class="detail">492 MW gross / 441 MW net · drum ±14 mm · MS 537–539 °C · vac 8.9 kPa · HR 11455 kJ/kWh</td>
-        <td class="n detail">192585 ms</td>
+        <td class="n detail">157940 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -203,37 +203,37 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>gross heat rate is within 25 % of the 9 500 kJ/kWh design</td>
         <td class="detail">11455 kJ/kWh gross (design 9 500, 21 %)</td>
-        <td class="n detail">0 ms</td>
+        <td class="n detail">1 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>load ramps up to 12 MW/min (1.8 %/min) complete without a trip</td>
         <td class="detail">6 MW/min: ok · 12 MW/min: ok</td>
-        <td class="n detail">117666 ms</td>
+        <td class="n detail">98737 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>sampled faults produce the annunciation an operator would expect</td>
         <td class="detail">6/6 sampled faults annunciate correctly</td>
-        <td class="n detail">56739 ms</td>
+        <td class="n detail">50215 ms</td>
       </tr><tr>
         <td class="n"><span class="pill fail">FAIL</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>simulation is deterministic for identical inputs</td>
         <td class="detail">two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]"</td>
-        <td class="n detail">322054 ms</td>
+        <td class="n detail">270971 ms</td>
       </tr><tr>
         <td class="n"><span class="pill fail">FAIL</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>engine keeps up with real time at 600× acceleration</td>
-        <td class="detail">351.0 ms per 200 ms tick — cannot keep up in real time</td>
-        <td class="n detail">118533 ms</td>
+        <td class="detail">289.7 ms per 200 ms tick — cannot keep up in real time</td>
+        <td class="n detail">98646 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>snapshot is small enough for a 5 Hz WebSocket feed</td>
         <td class="detail">34.1 KB full / 10.8 KB light at 5 Hz</td>
-        <td class="n detail">45170 ms</td>
+        <td class="n detail">39328 ms</td>
       </tr></table>
 <h3>API, protocol &amp; resilience <span class="detail">— 15/15 passed, 4.2 s</span></h3>
     <table><tr><th style="width:1%">Result</th><th style="width:1%">Severity</th><th>Check</th><th>Evidence</th><th style="width:1%">Time</th></tr><tr>
@@ -241,49 +241,49 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev high">high</span></td>
         <td>POST /api/command with unknown or malformed input does not crash the server</td>
         <td class="detail">6 malformed payloads handled, no prototype pollution</td>
-        <td class="n detail">18 ms</td>
+        <td class="n detail">15 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>GET / serves the HMI</td>
         <td class="detail">24 KB HTML</td>
-        <td class="n detail">20 ms</td>
+        <td class="n detail">15 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>static assets are served (/js/app.js, /vendor/three/three.module.js)</td>
         <td class="detail">all modules + vendored Three.js served locally (works offline)</td>
-        <td class="n detail">23 ms</td>
+        <td class="n detail">25 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>unknown paths return a 404 and do not leak files</td>
         <td class="detail">404 handler responds with plain text</td>
-        <td class="n detail">5 ms</td>
+        <td class="n detail">4 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>GET /api/snapshot returns a complete plant snapshot</td>
-        <td class="detail">13 top-level groups in 8 ms</td>
-        <td class="n detail">8 ms</td>
+        <td class="detail">13 top-level groups in 6 ms</td>
+        <td class="n detail">6 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>GET /api/design, /api/history and /api/faults respond correctly</td>
         <td class="detail">34 faults with cause, symptoms and operator actions</td>
-        <td class="n detail">13 ms</td>
+        <td class="n detail">11 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>POST /api/command applies operator commands</td>
         <td class="detail">loadSetpoint and rampRate applied</td>
-        <td class="n detail">19 ms</td>
+        <td class="n detail">14 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>fault injection and clearing work through the API</td>
         <td class="detail">inject → listed → clear round trip</td>
-        <td class="n detail">11 ms</td>
+        <td class="n detail">9 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -301,13 +301,13 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>oversized request bodies are rejected (1 MB JSON limit)</td>
         <td class="detail">oversized body → HTTP 413, server healthy</td>
-        <td class="n detail">36 ms</td>
+        <td class="n detail">12 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>WebSocket feed delivers welcome + snapshots and answers pings</td>
         <td class="detail">13 snapshots in 2.5 s, ping/pong ok, version 1.0.0</td>
-        <td class="n detail">2514 ms</td>
+        <td class="n detail">2525 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -318,28 +318,28 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>50 rapid commands are all handled without error</td>
-        <td class="detail">50 commands in 111 ms</td>
-        <td class="n detail">111 ms</td>
+        <td class="detail">50 commands in 109 ms</td>
+        <td class="n detail">110 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>snapshot payload fits a 5 Hz feed</td>
-        <td class="detail">29.9 KB per snapshot</td>
+        <td class="detail">29.7 KB per snapshot</td>
         <td class="n detail">2 ms</td>
       </tr></table>
-<h3>Usability &amp; front end <span class="detail">— 33/33 passed, 678.1 s</span></h3>
+<h3>Usability &amp; front end <span class="detail">— 34/34 passed, 483.9 s</span></h3>
     <table><tr><th style="width:1%">Result</th><th style="width:1%">Severity</th><th>Check</th><th>Evidence</th><th style="width:1%">Time</th></tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>the HMI loads and connects to the live feed</td>
         <td class="detail">websocket live, mode SHUTDOWN COLD, 0.0 MW</td>
-        <td class="n detail">4176 ms</td>
+        <td class="n detail">4417 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>the tutorial runs the whole cold start-up to a loaded unit</td>
-        <td class="detail">completed in 396 simulated minutes at 415 MW (94 s wall)</td>
-        <td class="n detail">94248 ms</td>
+        <td class="detail">completed in 383 simulated minutes at 365 MW (77 s wall)</td>
+        <td class="n detail">77061 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -351,67 +351,79 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev high">high</span></td>
         <td>the 3D station renders (canvas is not blank)</td>
         <td class="detail">411 meshes in the scene graph, 35978 triangles per frame</td>
-        <td class="n detail">391 ms</td>
+        <td class="n detail">382 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the guided start-up tutorial offers itself on first visit</td>
         <td class="detail">first step "1 · Before you start" with 2 controls</td>
-        <td class="n detail">333 ms</td>
+        <td class="n detail">397 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the tutorial advances only when the plant condition is met</td>
         <td class="detail">step 3 → 4, plant mode PRESTART</td>
-        <td class="n detail">3533 ms</td>
+        <td class="n detail">3366 ms</td>
+      </tr><tr>
+        <td class="n"><span class="pill pass">PASS</span></td>
+        <td class="n"><span class="sev high">high</span></td>
+        <td>the autopilot takes the unit the rest of the way to load hands-off</td>
+        <td class="detail">0 → 490 MW, state ON_LOAD — on load — holding 490 MW (3 advisory alarms)</td>
+        <td class="n detail">96963 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the autopilot button label never disagrees with the autopilot state</td>
         <td class="detail">label tracked the state across 12 snapshots</td>
-        <td class="n detail">18176 ms</td>
+        <td class="n detail">25230 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>operator controls stay clickable with the tutorial panel open</td>
         <td class="detail">800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok</td>
-        <td class="n detail">14442 ms</td>
+        <td class="n detail">13217 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the plant sound is actually synthesised (measured on the master bus)</td>
-        <td class="detail">master bus rms 0.1076, peak 0.285 (no clipping)</td>
-        <td class="n detail">24052 ms</td>
+        <td class="detail">master bus rms 0.1194, peak 0.312 (no clipping)</td>
+        <td class="n detail">19916 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>faults can be injected and cleared from the Faults tab</td>
         <td class="detail">filter → inject → symptoms shown → clear (TUBE_LEAK)</td>
-        <td class="n detail">14973 ms</td>
+        <td class="n detail">9017 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the operator UI gives no hint that the admin console exists</td>
         <td class="detail">no mention, no link; robots.txt disallows the path</td>
-        <td class="n detail">3833 ms</td>
+        <td class="n detail">1082 ms</td>
+      </tr><tr>
+        <td class="n"><span class="pill pass">PASS</span></td>
+        <td class="n"><span class="sev high">high</span></td>
+        <td>the admin console is styled, not stripped by its own CSP</td>
+        <td class="detail">40 CSS rules applied, ui-monospace, background rgb(7, 11, 18)</td>
+        <td class="n detail">3457 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the autopilot refuses to engage on a latched trip and says why</td>
         <td class="detail">refused — "autopilot cannot engage — MFT latched (Operator — manual master fuel trip)"</td>
-        <td class="n detail">16364 ms</td>
+        <td class="n detail">14469 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>a drive can be started and stopped from the Controls tab</td>
         <td class="detail">Conveyor, CW pump 1 and Boiler A ID fan each started and stopped against the model</td>
-        <td class="n detail">13430 ms</td>
+        <td class="n detail">11870 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>a console that fails to boot says so instead of going silently dead</td>
         <td class="detail">blocked /js/app.js → the watchdog tells the operator to hard-reload</td>
-        <td class="n detail">10238 ms</td>
+        <td class="n detail">10262 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -421,45 +433,39 @@ choices, not code defects, and are covered by the recommendations in section 7.<
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
-        <td>the autopilot takes the unit the rest of the way to load hands-off</td>
-        <td class="detail">406 → 500 MW, state ON_LOAD — on load — holding 500 MW (3 advisory alarms)</td>
-        <td class="n detail">174038 ms</td>
-      </tr><tr>
-        <td class="n"><span class="pill pass">PASS</span></td>
-        <td class="n"><span class="sev medium">medium</span></td>
         <td>the build stamp sits in the top-right corner of the window, on screen</td>
         <td class="detail">top-right of the window at 1024–1920 px, 14 px from the edge, never covered</td>
-        <td class="n detail">22158 ms</td>
+        <td class="n detail">10751 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
         <td>layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap)</td>
         <td class="detail">1366×768 ok · 1920×1080 ok</td>
-        <td class="n detail">6859 ms</td>
+        <td class="n detail">4011 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
         <td>the RESET PLANT button returns the simulator to a cold unit</td>
-        <td class="detail">0 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 0 min, 0 events</td>
-        <td class="n detail">156061 ms</td>
+        <td class="detail">295 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 0 min, 0 events</td>
+        <td class="n detail">100230 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
         <td>arming RESET PLANT neither shifts the bar nor stays silent</td>
         <td class="detail">idle 186px → armed 186px at the same spot; "⟲ CONFIRM RESET (9s)" → "⟲ RESET PLANT"</td>
-        <td class="n detail">17963 ms</td>
+        <td class="n detail">15471 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
         <td>the plant controls panel exposes every drive the model simulates</td>
         <td class="detail">33 drives in 5 groups — Boiler A, Boiler B, Turbine auxiliaries, Feed &amp; condensate, Coal, ash &amp; FGD</td>
-        <td class="n detail">1664 ms</td>
+        <td class="n detail">1726 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev low">low</span></td>
         <td>the bottom bar shows the build version and source commit</td>
-        <td class="detail">v1.0.0 · dfdb4df</td>
-        <td class="n detail">12082 ms</td>
+        <td class="detail">v1.0.0 · c58ff44</td>
+        <td class="n detail">17493 ms</td>
       </tr><tr>
         <td class="n"><span class="pill note">NOTE</span></td>
         <td class="n"><span class="sev low">low</span></td>
@@ -471,75 +477,75 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>tutorial step 1 waits for the operator (does not auto-advance)</td>
         <td class="detail">still on step 1 after 3 s of live snapshots</td>
-        <td class="n detail">3106 ms</td>
+        <td class="n detail">3305 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>the tutorial highlights the control each step is about</td>
         <td class="detail">"2 · Set time acceleration" highlights #speed and shows a live readout</td>
-        <td class="n detail">1370 ms</td>
+        <td class="n detail">1214 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>tutorial assist buttons drive the plant, not just the text</td>
         <td class="detail">time acceleration now 60× (selector 60×)</td>
-        <td class="n detail">2038 ms</td>
+        <td class="n detail">1754 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>the completion summary reports the achieved operating point</td>
         <td class="detail">7-row operating summary shown</td>
-        <td class="n detail">9661 ms</td>
+        <td class="n detail">7947 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>sound is off by default and starts on the operator's click</td>
         <td class="detail">AudioContext running, graph built</td>
-        <td class="n detail">3539 ms</td>
+        <td class="n detail">3390 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>sound tracks the plant: each bus is driven by its own variable</td>
-        <td class="detail">furnace 0.52 · fans 0.128 · mills 0.158 · steam 0.118 · vent 0.034 · leak 0 · turbine 0.201 · generator 0.092 · pumps 0.053 · water 0.075 · coal 0.05</td>
-        <td class="n detail">1561 ms</td>
+        <td class="detail">furnace 0.52 · fans 0.127 · mills 0.156 · steam 0.119 · vent 0.024 · leak 0 · turbine 0.195 · generator 0.09 · pumps 0.053 · water 0.075 · coal 0.05</td>
+        <td class="n detail">1271 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>volume control works and the setting survives a reload</td>
         <td class="detail">master gain 0.25, setting restored after reload (25 %, 🔊 SOUND ON)</td>
-        <td class="n detail">8758 ms</td>
+        <td class="n detail">5107 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>all nine side tabs open and render content</td>
         <td class="detail">9 tabs: alarms, plant, boiler, turb, bop, aux, faults, proc, events</td>
-        <td class="n detail">27088 ms</td>
+        <td class="n detail">10819 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>every 3D view preset works without errors</td>
         <td class="detail">9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown</td>
-        <td class="n detail">7181 ms</td>
+        <td class="n detail">5494 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>primary controls are reachable and labelled</td>
         <td class="detail">12 controls in the bottom bar, all labelled and ≥40 px wide</td>
-        <td class="n detail">1371 ms</td>
+        <td class="n detail">1101 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
         <td>the hidden console still loads and offers one-time registration</td>
         <td class="detail">reachable at /admin, registrationOpen=true</td>
-        <td class="n detail">2867 ms</td>
+        <td class="n detail">1109 ms</td>
       </tr></table>
-<h3>Security &amp; vulnerabilities <span class="detail">— 26/26 passed, 2.6 s</span></h3>
+<h3>Security &amp; vulnerabilities <span class="detail">— 27/27 passed, 2.6 s</span></h3>
     <table><tr><th style="width:1%">Result</th><th style="width:1%">Severity</th><th>Check</th><th>Evidence</th><th style="width:1%">Time</th></tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>first valid registration succeeds and sets an HttpOnly session cookie</td>
         <td class="detail">registered "chiefengineer", 64-char token, HttpOnly + SameSite=Lax</td>
-        <td class="n detail">54 ms</td>
+        <td class="n detail">77 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
@@ -557,7 +563,7 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev critical">critical</span></td>
         <td>every privileged admin endpoint rejects anonymous callers</td>
         <td class="detail">5 privileged endpoints all return 401 without a session</td>
-        <td class="n detail">8 ms</td>
+        <td class="n detail">7 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
@@ -569,13 +575,13 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev critical">critical</span></td>
         <td>login rejects a wrong password and accepts the right one</td>
         <td class="detail">wrong password and unknown user → 401, valid credentials → 200 + HttpOnly cookie</td>
-        <td class="n detail">95 ms</td>
+        <td class="n detail">89 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>path traversal cannot read files outside public/</td>
         <td class="detail">7 traversal payloads blocked</td>
-        <td class="n detail">9 ms</td>
+        <td class="n detail">10 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
@@ -587,49 +593,55 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev critical">critical</span></td>
         <td>cross-origin WebSocket connections are refused</td>
         <td class="detail">hostile origin rejected · same origin open · no origin open</td>
-        <td class="n detail">21 ms</td>
+        <td class="n detail">20 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev critical">critical</span></td>
         <td>no credentials or tokens are committed to the repository</td>
         <td class="detail">57 tracked files and the full history scanned — no secrets</td>
-        <td class="n detail">314 ms</td>
+        <td class="n detail">277 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>admin status reports registration open on a fresh install</td>
         <td class="detail">registration open, no administrator yet</td>
-        <td class="n detail">10 ms</td>
+        <td class="n detail">8 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>weak credentials are rejected</td>
         <td class="detail">password &lt; 8 chars, username &lt; 3 chars and empty body all rejected with 400</td>
-        <td class="n detail">19 ms</td>
+        <td class="n detail">29 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>repeated failed sign-ins are rate limited</td>
         <td class="detail">401,401,401,401,401,401,401,401,429,429,429,429 → locked; the real account still signs in (200)</td>
-        <td class="n detail">64 ms</td>
+        <td class="n detail">63 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>a forged X-Forwarded-For cannot poison the visitor log</td>
         <td class="detail">1 visitor(s), all from the real socket address</td>
-        <td class="n detail">617 ms</td>
+        <td class="n detail">622 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>logout invalidates the session</td>
         <td class="detail">session destroyed on logout, subsequent calls rejected</td>
-        <td class="n detail">5 ms</td>
+        <td class="n detail">4 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>the admin console is not discoverable from the public site</td>
         <td class="detail">no link, script reference or menu entry to the console anywhere in the public UI</td>
         <td class="n detail">1 ms</td>
+      </tr><tr>
+        <td class="n"><span class="pill pass">PASS</span></td>
+        <td class="n"><span class="sev high">high</span></td>
+        <td>CRLF cannot be injected into a response header</td>
+        <td class="detail">CRLF in the path and in the login username both contained</td>
+        <td class="n detail">5 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
@@ -641,13 +653,13 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev high">high</span></td>
         <td>runtime data (admin credentials, sessions) is excluded from git</td>
         <td class="detail">data/, node_modules/, .env and logs/ are all ignored</td>
-        <td class="n detail">0 ms</td>
+        <td class="n detail">1 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev high">high</span></td>
         <td>npm dependency audit (express, ws)</td>
         <td class="detail">advisories — critical 0, high 0, moderate 0, low 0</td>
-        <td class="n detail">443 ms</td>
+        <td class="n detail">434 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev medium">medium</span></td>
@@ -677,7 +689,7 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>authenticated visitor list exposes WAN IP and geolocation fields</td>
         <td class="detail">2 visitor(s); sample 127.0.0.1 → Local network, RFC1918</td>
-        <td class="n detail">313 ms</td>
+        <td class="n detail">311 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -689,7 +701,7 @@ choices, not code defects, and are covered by the recommendations in section 7.<
         <td class="n"><span class="sev info">info</span></td>
         <td>JSON body parser is size limited and rejects malformed JSON</td>
         <td class="detail">malformed JSON → HTTP 400, server still serving</td>
-        <td class="n detail">8 ms</td>
+        <td class="n detail">4 ms</td>
       </tr><tr>
         <td class="n"><span class="pill pass">PASS</span></td>
         <td class="n"><span class="sev info">info</span></td>
@@ -706,7 +718,7 @@ choices, not code defects, and are covered by the recommendations in section 7.<
 
 <h2>4. Findings</h2>
 <h3>4.1 Open findings</h3>
-<table><tr><th style="width:1%">Severity</th><th>Finding</th><th>Detail</th></tr><tr><td class="n"><span class="sev info">info</span></td><td>simulation is deterministic for identical inputs</td><td class="detail">two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]"</td></tr><tr><td class="n"><span class="sev info">info</span></td><td>engine keeps up with real time at 600× acceleration</td><td class="detail">351.0 ms per 200 ms tick — cannot keep up in real time</td></tr></table>
+<table><tr><th style="width:1%">Severity</th><th>Finding</th><th>Detail</th></tr><tr><td class="n"><span class="sev info">info</span></td><td>simulation is deterministic for identical inputs</td><td class="detail">two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]"</td></tr><tr><td class="n"><span class="sev info">info</span></td><td>engine keeps up with real time at 600× acceleration</td><td class="detail">289.7 ms per 200 ms tick — cannot keep up in real time</td></tr></table>
 <h3>4.2 Observations (accepted, not defects)</h3>
 <table><tr><th style="width:1%">Severity</th><th>Observation</th><th>Detail</th></tr><tr><td class="n"><span class="sev high">high</span></td><td>Part-load setpoints settle below the target</td><td class="detail">Given a full-load target the unit runs up to 497 MW with the main steam held at 538 °C. Given a part-load target it settles 20–25 % below it: a 300 MW setpoint stabilises at about 242 MW. The sliding-pressure schedule then fixes the header pressure at ~12.6 MPa, and the turbine model converts the resulting steam flow into less work per kilogram than the design (the part-load heat rate is ~18 % abo</td></tr><tr><td class="n"><span class="sev medium">medium</span></td><td>Load ramps above ~12 MW/min trip the unit on high drum level</td><td class="detail">At 20 MW/min (3 %/min — an emergency rate a real unit would take with runback active) the drum level controller cannot hold the swell and the boiler trips on level HHH at ~140 MW. The qualified envelope is 1–12 MW/min; operators should use ≤ 6 MW/min.</td></tr><tr><td class="n"><span class="sev low">low</span></td><td>Tutorial and sound state are stored per browser</td><td class="detail">The tutorial auto-offers itself once per browser (localStorage "tcsim.tutorialSeen") and the sound preference persists per browser. Clear site data — or use the 🎓 TUTORIAL button — to run the guided start-up again on the same machine.</td></tr><tr><td class="n"><span class="sev medium">medium</span></td><td>Control API is unauthenticated by design</td><td class="detail">POST /api/command, /api/fault/inject and the WebSocket command channel let any client that can reach the port start, trip and fault the unit — that is what makes the HMI work without a login. Deploy behind a firewall/VPN or put a reverse proxy with HTTP auth in front of it if the port is exposed.</td></tr><tr><td class="n"><span class="sev medium">medium</span></td><td>Session cookie is issued without the Secure flag</td><td class="detail">The admin cookie carries HttpOnly and SameSite=Lax but not Secure, because the installer defaults to plain HTTP. Terminate TLS in front of the app (nginx + Let's Encrypt) and the cookie should be upgraded to Secure + __Host- prefix.</td></tr></table>
 
@@ -745,5 +757,5 @@ node tools/test-security.js     # security      (~3 s)
 node tools/loadtest.js --target=660 --ramp=4    # load-ramp harness</code></pre>
 <p class="detail">Environment: Ubuntu Linux, Node.js 20.20.2, Express 4.22.3, ws 8.22.0; headless Chrome for the usability suite.</p>
 
-<div class="foot">Generated 2026-09-29T09:23:51.284Z by tools/report.js from docs/test-results.json · turbine-coal-simulator 1.0.0</div>
+<div class="foot">Generated 2026-09-30T04:20:09.924Z by tools/report.js from docs/test-results.json · turbine-coal-simulator 1.0.0</div>
 </div></body></html>

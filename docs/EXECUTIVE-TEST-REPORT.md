@@ -1,8 +1,8 @@
 # Executive test report — turbine-coal-simulator 1.0.0
 
 **Verdict: PASS WITH MINOR FINDINGS** — 2 low/medium findings raised.
-95/102 checks passed · 5 observations · 13 defects found and fixed.
-Generated Tue, 29 Sep 2026 09:23:51 GMT from `docs/test-results.json`.
+97/104 checks passed · 5 observations · 13 defects found and fixed.
+Generated Wed, 30 Sep 2026 04:20:09 GMT from `docs/test-results.json`.
 
 ## 1. Summary
 
@@ -18,10 +18,10 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 
 | Suite | Passed | Failed | Notes | Time |
 |---|---:|---:|---:|---:|
-| Plant model & physics | 21 | 2 | 2 | 1685.2 s |
+| Plant model & physics | 21 | 2 | 2 | 1397.5 s |
 | API, protocol & resilience | 15 | 0 | 0 | 4.2 s |
-| Usability & front end | 33 | 0 | 1 | 678.1 s |
-| Security & vulnerabilities | 26 | 0 | 2 | 2.6 s |
+| Usability & front end | 34 | 0 | 1 | 483.9 s |
+| Security & vulnerabilities | 27 | 0 | 2 | 2.6 s |
 
 ### Plant model & physics
 
@@ -50,7 +50,7 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | info | load ramps up to 12 MW/min (1.8 %/min) complete without a trip | 6 MW/min: ok · 12 MW/min: ok |
 | PASS | info | sampled faults produce the annunciation an operator would expect | 6/6 sampled faults annunciate correctly |
 | FAIL | info | simulation is deterministic for identical inputs | two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]" |
-| FAIL | info | engine keeps up with real time at 600× acceleration | 351.0 ms per 200 ms tick — cannot keep up in real time |
+| FAIL | info | engine keeps up with real time at 600× acceleration | 289.7 ms per 200 ms tick — cannot keep up in real time |
 | PASS | info | snapshot is small enough for a 5 Hz WebSocket feed | 34.1 KB full / 10.8 KB light at 5 Hz |
 
 ### API, protocol & resilience
@@ -61,7 +61,7 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | info | GET / serves the HMI | 24 KB HTML |
 | PASS | info | static assets are served (/js/app.js, /vendor/three/three.module.js) | all modules + vendored Three.js served locally (works offline) |
 | PASS | info | unknown paths return a 404 and do not leak files | 404 handler responds with plain text |
-| PASS | info | GET /api/snapshot returns a complete plant snapshot | 13 top-level groups in 8 ms |
+| PASS | info | GET /api/snapshot returns a complete plant snapshot | 13 top-level groups in 6 ms |
 | PASS | info | GET /api/design, /api/history and /api/faults respond correctly | 34 faults with cause, symptoms and operator actions |
 | PASS | info | POST /api/command applies operator commands | loadSetpoint and rampRate applied |
 | PASS | info | fault injection and clearing work through the API | inject → listed → clear round trip |
@@ -70,42 +70,43 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | info | oversized request bodies are rejected (1 MB JSON limit) | oversized body → HTTP 413, server healthy |
 | PASS | info | WebSocket feed delivers welcome + snapshots and answers pings | 13 snapshots in 2.5 s, ping/pong ok, version 1.0.0 |
 | PASS | info | WebSocket accepts commands and rejects garbage without dying | malformed frames ignored, server still broadcasting |
-| PASS | info | 50 rapid commands are all handled without error | 50 commands in 111 ms |
-| PASS | info | snapshot payload fits a 5 Hz feed | 29.9 KB per snapshot |
+| PASS | info | 50 rapid commands are all handled without error | 50 commands in 109 ms |
+| PASS | info | snapshot payload fits a 5 Hz feed | 29.7 KB per snapshot |
 
 ### Usability & front end
 
 | Result | Sev | Check | Evidence |
 |---|---|---|---|
 | PASS | critical | the HMI loads and connects to the live feed | websocket live, mode SHUTDOWN COLD, 0.0 MW |
-| PASS | critical | the tutorial runs the whole cold start-up to a loaded unit | completed in 396 simulated minutes at 415 MW (94 s wall) |
+| PASS | critical | the tutorial runs the whole cold start-up to a loaded unit | completed in 383 simulated minutes at 365 MW (77 s wall) |
 | PASS | high | no JavaScript errors on load or during operation | clean console |
 | PASS | high | the 3D station renders (canvas is not blank) | 411 meshes in the scene graph, 35978 triangles per frame |
 | PASS | high | the guided start-up tutorial offers itself on first visit | first step "1 · Before you start" with 2 controls |
 | PASS | high | the tutorial advances only when the plant condition is met | step 3 → 4, plant mode PRESTART |
+| PASS | high | the autopilot takes the unit the rest of the way to load hands-off | 0 → 490 MW, state ON_LOAD — on load — holding 490 MW (3 advisory alarms) |
 | PASS | high | the autopilot button label never disagrees with the autopilot state | label tracked the state across 12 snapshots |
 | PASS | high | operator controls stay clickable with the tutorial panel open | 800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok |
-| PASS | high | the plant sound is actually synthesised (measured on the master bus) | master bus rms 0.1076, peak 0.285 (no clipping) |
+| PASS | high | the plant sound is actually synthesised (measured on the master bus) | master bus rms 0.1194, peak 0.312 (no clipping) |
 | PASS | high | faults can be injected and cleared from the Faults tab | filter → inject → symptoms shown → clear (TUBE_LEAK) |
 | PASS | high | the operator UI gives no hint that the admin console exists | no mention, no link; robots.txt disallows the path |
+| PASS | high | the admin console is styled, not stripped by its own CSP | 40 CSS rules applied, ui-monospace, background rgb(7, 11, 18) |
 | PASS | high | the autopilot refuses to engage on a latched trip and says why | refused — "autopilot cannot engage — MFT latched (Operator — manual master fuel trip)" |
 | PASS | high | a drive can be started and stopped from the Controls tab | Conveyor, CW pump 1 and Boiler A ID fan each started and stopped against the model |
 | PASS | high | a console that fails to boot says so instead of going silently dead | blocked /js/app.js → the watchdog tells the operator to hard-reload |
 | PASS | high | no JavaScript errors accumulated over the whole session | 0 console errors, 0 page errors |
-| PASS | medium | the autopilot takes the unit the rest of the way to load hands-off | 406 → 500 MW, state ON_LOAD — on load — holding 500 MW (3 advisory alarms) |
 | PASS | medium | the build stamp sits in the top-right corner of the window, on screen | top-right of the window at 1024–1920 px, 14 px from the edge, never covered |
 | PASS | medium | layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap) | 1366×768 ok · 1920×1080 ok |
-| PASS | medium | the RESET PLANT button returns the simulator to a cold unit | 0 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 0 min, 0 events |
+| PASS | medium | the RESET PLANT button returns the simulator to a cold unit | 295 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 0 min, 0 events |
 | PASS | medium | arming RESET PLANT neither shifts the bar nor stays silent | idle 186px → armed 186px at the same spot; "⟲ CONFIRM RESET (9s)" → "⟲ RESET PLANT" |
 | PASS | medium | the plant controls panel exposes every drive the model simulates | 33 drives in 5 groups — Boiler A, Boiler B, Turbine auxiliaries, Feed & condensate, Coal, ash & FGD |
-| PASS | low | the bottom bar shows the build version and source commit | v1.0.0 · dfdb4df |
+| PASS | low | the bottom bar shows the build version and source commit | v1.0.0 · c58ff44 |
 | NOTE | low | Tutorial and sound state are stored per browser | The tutorial auto-offers itself once per browser (localStorage "tcsim.tutorialSeen") and the sound preference persists per browser. Clear site data — or use the 🎓 TUTORIAL button — to run the guided start-up again on the same machine. |
 | PASS | info | tutorial step 1 waits for the operator (does not auto-advance) | still on step 1 after 3 s of live snapshots |
 | PASS | info | the tutorial highlights the control each step is about | "2 · Set time acceleration" highlights #speed and shows a live readout |
 | PASS | info | tutorial assist buttons drive the plant, not just the text | time acceleration now 60× (selector 60×) |
 | PASS | info | the completion summary reports the achieved operating point | 7-row operating summary shown |
 | PASS | info | sound is off by default and starts on the operator's click | AudioContext running, graph built |
-| PASS | info | sound tracks the plant: each bus is driven by its own variable | furnace 0.52 · fans 0.128 · mills 0.158 · steam 0.118 · vent 0.034 · leak 0 · turbine 0.201 · generator 0.092 · pumps 0.053 · water 0.075 · coal 0.05 |
+| PASS | info | sound tracks the plant: each bus is driven by its own variable | furnace 0.52 · fans 0.127 · mills 0.156 · steam 0.119 · vent 0.024 · leak 0 · turbine 0.195 · generator 0.09 · pumps 0.053 · water 0.075 · coal 0.05 |
 | PASS | info | volume control works and the setting survives a reload | master gain 0.25, setting restored after reload (25 %, 🔊 SOUND ON) |
 | PASS | info | all nine side tabs open and render content | 9 tabs: alarms, plant, boiler, turb, bop, aux, faults, proc, events |
 | PASS | info | every 3D view preset works without errors | 9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown |
@@ -132,6 +133,7 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | high | a forged X-Forwarded-For cannot poison the visitor log | 1 visitor(s), all from the real socket address |
 | PASS | high | logout invalidates the session | session destroyed on logout, subsequent calls rejected |
 | PASS | high | the admin console is not discoverable from the public site | no link, script reference or menu entry to the console anywhere in the public UI |
+| PASS | high | CRLF cannot be injected into a response header | CRLF in the path and in the login username both contained |
 | PASS | high | no reflected XSS: API responses are JSON with a safe content type | JSON API only; 404 handler is plain text and escapes nothing dangerous |
 | PASS | high | runtime data (admin credentials, sessions) is excluded from git | data/, node_modules/, .env and logs/ are all ignored |
 | PASS | high | npm dependency audit (express, ws) | advisories — critical 0, high 0, moderate 0, low 0 |
