@@ -263,24 +263,39 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
 
   /* ---------------- autopilot, build stamp, control reachability ---------------- */
   await s.test('the autopilot takes the unit the rest of the way to load hands-off', async () => {
-    // The autopilot refuses to engage while a trip is latched — by design. An
-    // earlier scenario can leave one latched, so clear it the way an operator
-    // would before asking the autopilot to take over; otherwise this test
-    // measures a refusal, and leaves the unit tripped for every test after it.
-    for (let i = 0; i < 6; i++) {
-      const r = await page.evaluate(() => {
-        const p = window.__tcsim.state.protection;
+    // Start from a known cold unit instead of inheriting whatever the guided
+    // start-up happened to leave behind. This test is about the autopilot: an
+    // earlier scenario that left a trip latched used to make it measure a
+    // refusal, and then leave the unit tripped for every test after it.
+    await page.evaluate(() => window.__tcsim.cmd('resetPlant'));
+    await wait(3000);
+    await page.evaluate(() => {
+      window.__tcsim.cmd('resetMFT');
+      // Time acceleration for the run-up only, so a start does not take a
+      // whole shift of wall clock. The autopilot hands the setting back when
+      // it disengages.
+      window.__tcsim.autopilot.runUpSpeed = 600;
+    });
+    await wait(2500);
+    let engaged = { active: false, note: 'never tried', mode: '?', mft: false };
+    for (let i = 0; i < 4; i++) {
+      engaged = await page.evaluate(() => {
+        const p = window.__tcsim.state.protection, a = window.__tcsim.autopilot;
         if (p.mft.latched || p.turbineTrip.latched) window.__tcsim.cmd('resetMFT');
-        const a = window.__tcsim.autopilot;
         if (!a.active) a.enable();
-        return { active: a.active, mft: p.mft.latched };
+        return { active: a.active, state: a.state, note: a.note,
+          mode: window.__tcsim.state.meta.mode, mft: p.mft.latched };
       });
-      if (r.active) break;
+      if (engaged.active) break;
       await wait(3000);
     }
+    s.assert(engaged.active,
+      `autopilot refused to engage from cold: ${engaged.note} (mode ${engaged.mode}, MFT ${engaged.mft})`);
     const before = await page.evaluate(() => window.__tcsim.state.plant.grossMW || 0);
     let peak = before; let last = null;
-    for (let i = 0; i < 24; i++) {
+    // A whole hands-off start: cold → pressurising → roll → synchronise →
+    // load. ~90 s wall at 600x; 200 s leaves room for a loaded machine.
+    for (let i = 0; i < 40; i++) {
       await wait(5000);
       last = await page.evaluate(() => ({
         st: window.__tcsim.autopilot.state,
@@ -295,7 +310,7 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     s.assert(peak > before + 40 || (last && last.st === 'ON_LOAD'),
       `autopilot did not raise load: ${before.toFixed(0)} → ${peak.toFixed(0)} MW (state ${last && last.st})`);
     return { detail: `${before.toFixed(0)} → ${peak.toFixed(0)} MW, state ${last && last.st} — ${last && last.note}` };
-  }, { severity: 'medium' });
+  }, { severity: 'high' });
 
   await s.test('the autopilot button label never disagrees with the autopilot state', async () => {
     // Regression: enable() engaged and then update() disengaged on the very
@@ -442,9 +457,14 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     });
     const live = Object.values(g).reduce((a, v) => a + v, 0);
     const sounding = Object.values(g).filter((v) => v > 0.005).length;
+    const rpm = await page.evaluate(() => window.__tcsim.state.turbine.speed || 0);
     s.assert(live > 0.03, `all audio buses are silent (sum ${live.toFixed(3)})`);
     s.assert(sounding >= 4, `only ${sounding} of ${Object.keys(g).length} buses are audible`);
-    s.assert(g.turbine > 0.01, `turbine bus is ${g.turbine} with the machine at speed`);
+    // Say what the machine was actually doing: a silent turbine bus on a
+    // stopped machine is correct, and reporting it as a fault sends the next
+    // engineer looking in the wrong place.
+    s.assert(g.turbine > 0.01,
+      `turbine bus is ${g.turbine} with the machine turning at ${rpm.toFixed(0)} rpm`);
     return { detail: Object.entries(g).map(([k, v]) => `${k} ${v}`).join(' · ') };
   });
 

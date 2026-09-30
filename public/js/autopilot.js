@@ -42,6 +42,19 @@ const HOLD_PRIORITIES = new Set(['HIGH', 'CRITICAL']);
 const LOW_LOAD_STEAMING_MW = 265;
 /** Phases in which the unit is coming *down*, so the autopilot must wait. */
 const SHUTDOWN_PHASES = new Set(['UNLOADING', 'FIREDOWN', 'COASTDOWN', 'TURNING_GEAR']);
+/**
+ * Alarms that loading the unit is the CURE for, not a reason to stop.
+ *
+ * Below the initial-load soak point almost no steam passes through the LP
+ * stages, so the exhaust runs hot; and the boiler has more steam than the
+ * turbine will take, so the drum safeties lift. Freezing the load at zero and
+ * waiting for either to clear is a deadlock — they can only clear once the
+ * machine is loaded. That is precisely what happened: a hands-off cold start
+ * synchronised, sat at 0 MW with a hot exhaust and the safeties blowing, and
+ * held there for good. Below this load the autopilot loads through them.
+ */
+const MIN_LOAD_MW = 66;              // ≈10 % of the 660 MW rating — the soak point
+const LOAD_THROUGH = new Set(['EXH_TEMP_HI', 'SAFETY_VALVE']);
 
 export class Autopilot {
   /**
@@ -196,10 +209,14 @@ export class Autopilot {
     // part load on every start.
     const alarms = s.alarms || [];
     const serious = alarms.filter((a) => HOLD_PRIORITIES.has(a.prio)
-      && !(a.id === 'ECON_STEAMING' && mw < LOW_LOAD_STEAMING_MW));
+      && !(a.id === 'ECON_STEAMING' && mw < LOW_LOAD_STEAMING_MW)
+      && !(LOAD_THROUGH.has(a.id) && mw < MIN_LOAD_MW));
     if (serious.length > 0) {
       this.state = 'HOLDING';
       this.note = `holding ${Math.round(mw)} MW — ${serious[0].msg || serious[0].id}`;
+      // Freeze the setpoint where the unit is. A genuine HIGH or CRITICAL
+      // alarm is not something to load into — the load-through alarms above
+      // have already been filtered out, so what is left here is real.
       this.throttled(() => this.setLoad(Math.max(0, Math.round(mw / 10) * 10), this.ramp), simTime, 60);
       this.paint();
       return;
