@@ -73,6 +73,41 @@ const ALARMS = [
   { id: 'GRID_FREQ', group: 'Emissions', prio: 'MEDIUM', msg: () => 'Grid frequency excursion', test: (s) => s.turbine.breakerClosed && Math.abs(s.plant.frequency - DESIGN.gridFrequency) > 0.25 },
 ];
 
+/**
+ * The operator manual desk.
+ *
+ * Every item here is a value the automatic controls write on every tick. Taking
+ * one to MANUAL discards what the sequencer just decided and writes the
+ * operator's number in its place — see applyManual(). Nothing else changes: the
+ * protections still trip on what the plant actually does, so the desk is a way
+ * to fly the unit badly, which is rather the point of a training simulator.
+ *
+ *   key          AUTO                              MANUAL (operator value)
+ *   fd:<b>       %    sequencer sets FD speed      operator sets it
+ *   id:<b>       %    sequencer sets ID speed      operator sets it (draft ctrl trims)
+ *   pa:<b>       %    sequencer sets PA speed      operator sets it
+ *   vent:<b>     t/h  start-up vent controller     operator sets the demand
+ *   level:<b>    mm   3-element level control      operator sets feedwater flow (t/h)
+ *   mstemp:<b>   °C   attemperator PID             operator sets stage-2 spray (%)
+ *   rhtemp:<b>   °C   gas bypass damper to SP      operator sets the damper (%)
+ *
+ * `<b>` is the boiler index: 0 = A, 1 = B. The loop items carry a setpoint as
+ * well as a manual position — the setpoint applies in AUTO, the position only
+ * once the item is taken to MANUAL.
+ */
+const MANUAL_DESK = new Map([
+  ['fd',     { label: 'FD fan speed',      unit: '%',   min: 0,  max: 100, step: 1 }],
+  ['id',     { label: 'ID fan speed',      unit: '%',   min: 0,  max: 100, step: 1 }],
+  ['pa',     { label: 'PA fan speed',      unit: '%',   min: 0,  max: 100, step: 1 }],
+  ['vent',   { label: 'Start-up vent',     unit: 't/h', min: 0,  max: 600, step: 5 }],
+  ['level',  { label: 'Drum level',        unit: 'mm',  min: -250, max: 250, step: 5,
+               spDefault: 0, manualUnit: 't/h', manualMin: 0, manualMax: 1150 }],
+  ['mstemp', { label: 'Main steam temp',   unit: '°C',  min: 470, max: 570, step: 1,
+               spDefault: DESIGN.steam.mainSteamTemp, manualUnit: '%', manualMin: 0, manualMax: 100 }],
+  ['rhtemp', { label: 'Reheat steam temp', unit: '°C',  min: 470, max: 570, step: 1,
+               spDefault: DESIGN.steam.reheatOutletTemp, manualUnit: '%', manualMin: 0, manualMax: 100 }],
+]);
+
 function tag(i) { return i === 0 ? 'A' : 'B'; }
 
 /* ------------------------------------------------------------------ *
@@ -187,6 +222,7 @@ class Plant {
     this.targetLoad = 660;
     this.autoRampLimit = 90;        // MW — where the automatic sequence hands over
     this.operatorMode = 'auto';
+    this.manual = {};   // operator manual desk — see applyManual()
     this.loadRampRate = 4.0;       // MW/min (1 %/min of rated)
     this.pressureSetpoint = 0.101;
     this.startupPressureTarget = 8.0;
@@ -252,6 +288,11 @@ class Plant {
     this.boilerFlowCmd = null;
     this.loadHold = null;
     this.ventDemand = 0;
+    // A reset is a return to a cold unit, and part of that is handing every
+    // loop back to the automatic controls: an operator who left a fan on
+    // MANUAL and then reset would otherwise be looking at a plant that
+    // ignores its own sequencer and cannot say why.
+    this.manual = {};
     this.time = 0;
     this.grid.frequency = DESIGN.gridFrequency;
     this.grid.disturbance = 0;
@@ -363,6 +404,51 @@ class Plant {
       case 'setAuto':
         this.operatorMode = value ? 'auto' : 'manual';
         break;
+      case 'manual': {
+        // Operator manual desk. value = { key, on, value, sp }.
+        const k = value && value.key;
+        const grp = typeof k === 'string' ? k.split(':')[0] : '';
+        const def = MANUAL_DESK.get(grp);
+        if (!def) break;
+        // Clamp on receipt, not on use. The loop items carry two numbers with
+        // different ranges — a setpoint in °C and a valve position in % — and
+        // clamping the position to the setpoint's range put the reheater damper
+        // on its 100 % stop the moment the operator asked for 20 %.
+        const vLo = def.manualMin !== undefined ? def.manualMin : def.min;
+        const vHi = def.manualMax !== undefined ? def.manualMax : def.max;
+        const prev = this.manual[k] || {};
+        const rawV = Number(value.value);
+        const rawSP = Number(value.sp);
+        const e = {
+          on: value.on === true,
+          value: clamp(Number.isFinite(rawV) ? rawV : (Number.isFinite(prev.value) ? prev.value : (def.manualMin || 0)),
+            vLo, vHi),
+          sp: (value.sp === undefined || value.sp === null || !Number.isFinite(rawSP))
+            ? (Number.isFinite(prev.sp) ? prev.sp : undefined)
+            : clamp(rawSP, def.min, def.max),
+          held: prev.held === true,
+        };
+        this.manual[k] = e;
+        const where = k.includes(':') ? ` boiler ${'AB'[Number(k.split(':')[1]) | 0]}` : '';
+        this.log('CTRL', `${def.label}${where} — ${e.on ? `MANUAL at ${e.value} ${def.manualUnit || def.unit}` : 'AUTO'}`
+          + `${e.sp !== undefined ? `, setpoint ${e.sp} ${def.unit}` : ''}`);
+        break;
+      }
+      case 'manualClear': {
+        // Release everything first, then forget it. Clearing the map outright
+        // left the boiler flags stuck on MANUAL with nothing left to turn them
+        // off, so the reheater damper stayed under operator control for the
+        // rest of the run.
+        const n = Object.keys(this.manual || {}).length;
+        for (const k of Object.keys(this.manual || {})) {
+          const e = this.manual[k];
+          if (e) { e.on = false; e.value = 0; }
+        }
+        this.applyManual();
+        this.manual = {};
+        this.log('CTRL', `Manual desk cleared — ${n} item${n === 1 ? '' : 's'} back to automatic`);
+        break;
+      }
       default:
         break;
     }
@@ -847,6 +933,65 @@ class Plant {
   }
 
   /**
+   * Operator manual desk: write the operator's values over whatever the
+   * automatic controls produced this tick.
+   *
+   * Called from step() between sequence() and the physics, so a manual value
+   * takes effect on the same tick rather than one tick late. Where a loop
+   * shares its auto/manual flag with a fault — the drum level controller does,
+   * because a failed feedwater valve takes it out of automatic — the flag is
+   * only given back if this desk is the one that took it, so clearing the desk
+   * cannot silently repair a fault.
+   */
+  applyManual() {
+    const m = this.manual;
+    if (!m) return;
+    for (const key of Object.keys(m)) {
+      const e = m[key];
+      if (!e) continue;
+      const parts = key.split(':');
+      const b = parts.length > 1 ? this.boilers[Number(parts[1]) | 0] : null;
+      const v = clamp(Number(e.value) || 0, -1e6, 1e6);
+      switch (parts[0]) {
+        case 'fd':   if (b && e.on) b.fdSpeed = clamp(v, 0, 100); break;
+        case 'id':   if (b && e.on) b.idSpeedBase = clamp(v, 0, 100); break;
+        case 'pa':   if (b && e.on) b.paSpeed = clamp(v, 0, 100); break;
+        case 'vent': if (b && e.on) b.ventDemand = clamp(v, 0, 600); break;
+
+        case 'rhtemp': {
+          if (!b) break;
+          if (e.sp !== undefined) b.rhTempSetpoint = clamp(e.sp, 470, 570);
+          // Desk-only flag, so it can be given straight back.
+          b.rhGasDamperManual = !!e.on;
+          if (e.on) b.rhGasDamper = clamp(v, 0, 100);
+          break;
+        }
+        case 'mstemp': {
+          if (!b) break;
+          if (e.sp !== undefined) b.msTempSetpoint = clamp(e.sp, 470, 570);
+          b.msSprayManual = !!e.on;
+          if (e.on) b.spray2Manual = clamp(v, 0, 100);
+          break;
+        }
+        case 'level': {
+          if (!b) break;
+          if (e.sp !== undefined) b.levelSetpoint = clamp(e.sp, -250, 250);
+          if (e.on) {
+            b.levelCtrlAuto = false; e.held = true;
+            b.fwManual = clamp(v, 0, 1150);
+          } else if (e.held) {
+            // Only hand the loop back if this desk took it: a feedwater valve
+            // fault holds levelCtrlAuto false and must not be undone here.
+            b.levelCtrlAuto = true; e.held = false;
+          }
+          break;
+        }
+        default: break;
+      }
+    }
+  }
+
+  /**
    * Start-up firing-rate law (per boiler, t/h of coal).
    *
    * A real start-up is run off a firing-rate schedule, not a pressure PID: the
@@ -958,7 +1103,7 @@ class Plant {
       // excess air / O2 trim
       x.excessAir = clamp(0.20 + (3.5 - x.o2) * 0.012, 0.02, 0.55);
       // reheater temperature by gas bypass damper
-      x.rhGasDamper = clamp(50 + (DESIGN.steam.reheatOutletTemp - x.rhOutTemp) * 3.2, 4, 100);
+      x.rhGasDamper = clamp(50 + ((x.rhTempSetpoint || DESIGN.steam.reheatOutletTemp) - x.rhOutTemp) * 3.2, 4, 100);
     }
     // turbineside: the load controller drives the governor valves
     this.tg.mode = 'load';
@@ -985,6 +1130,12 @@ class Plant {
 
       // ---- sequencer & control ----
       this.sequence(dt);
+
+      // ---- operator manual desk ----
+      // After the sequencer, before the physics: whatever the automatic
+      // controls just decided, an operator who has taken an item to MANUAL
+      // wins, and the plant has to answer on this same tick.
+      this.applyManual();
 
       // ---- grid frequency ----
       const dist = this.grid.disturbance || 0;
@@ -1173,7 +1324,11 @@ class Plant {
       })),
       millsRunning: b.millsRunning,
       fdRunning: b.fdRunning, idRunning: b.idRunning, paRunning: b.paRunning,
-      fdSpeed: b.fdSpeed, idSpeed: b.idSpeed, paSpeed: b.paSpeed,
+      // idSpeedBase is what the sequencer (and the manual desk) commands;
+      // idSpeed is that plus the draft-controller trim. The console needs both:
+      // showing only idSpeed makes a manual ID fan look like it is ignoring the
+      // operator, because the trim moves on top of what was asked for.
+      fdSpeed: b.fdSpeed, idSpeed: b.idSpeed, idSpeedBase: b.idSpeedBase || 0, paSpeed: b.paSpeed,
       fdCurrent: b.fdCurrent, idCurrent: b.idCurrent, paCurrent: b.paCurrent,
       totalAir: b.totalAir, mGas: b.mGas, o2: b.o2, co: b.co, draft: b.draft,
       excessAir: b.excessAir * 100,
@@ -1187,6 +1342,14 @@ class Plant {
       mainStopValve: b.mainStopValve, msLineIsolated: b.msLineIsolated,
       fuelDemand: b.fuelDemand, levelCtrlAuto: b.levelCtrlAuto, tempCtrlAuto: b.tempCtrlAuto,
       rhGasDamper: b.rhGasDamper, aphFire: b.aphFire || 0, millFire: b.millFire || false,
+      ventFlow: b.ventFlow, ventDemand: b.ventDemand || 0,
+      // manual desk: what the operator has taken, and the setpoints the loops
+      // are working to, so the console can show the target beside the value
+      levelSetpoint: b.levelSetpoint || 0, fwManual: b.fwManual || 0,
+      msTempSetpoint: b.msTempSetpoint || 0, spray2Manual: b.spray2Manual || 0,
+      spray2Pct: b.spray1Max > 0 ? clamp((b.spray2Cmd || 0) / b.spray1Max * 100, 0, 100) : 0,
+      rhTempSetpoint: b.rhTempSetpoint || 0, rhGasDamperManual: !!b.rhGasDamperManual,
+      msSprayManual: !!b.msSprayManual,
     });
 
     const snap = {
@@ -1196,6 +1359,7 @@ class Plant {
         mode: this.mode, phaseNote: this.phaseNote, phaseTimer: this.phaseTimer,
         runHours: this.runHours, starts: this.starts,
         targetLoad: this.targetLoad, operatorMode: this.operatorMode,
+        manual: this.manual || {},
         procedure: PROCEDURE[this.mode] || [],
         pressureSetpoint: this.pressureSetpoint, masterFuel: this.masterFuel,
       },

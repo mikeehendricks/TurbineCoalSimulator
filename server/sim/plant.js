@@ -95,6 +95,17 @@ class Boiler {
     const B = DESIGN.boiler, C = DESIGN.steam;
     this.inService = true;
 
+    // ---- control setpoints the operator desk can move ----
+    // Defaults are the design values, so an untouched boiler behaves exactly
+    // as it did before the desk existed.
+    this.levelSetpoint = 0;                          // mm
+    this.fwManual = 0;                               // t/h, when the level loop is MANUAL
+    this.msTempSetpoint = C.mainSteamTemp;           // °C
+    this.rhTempSetpoint = C.reheatOutletTemp;        // °C
+    this.spray2Manual = 0;                           // % of the stage-2 attemperator
+    this.msSprayManual = false;
+    this.rhGasDamperManual = false;
+
     // ---- pressure parts -------------------------------------------------
     this.drumPressure = 0.101;      // MPa(a) cold
     this.drumLevel = -180;          // mm (cold, drained down for start-up)
@@ -387,12 +398,19 @@ class Boiler {
     const spray1Max = (LIMITS.steam.superheatAttempMax || 90)
       * clamp(0.25 + 0.75 * (this.msFlow / (DESIGN.steam.mainSteamFlow / 2)), 0.35, 1.2);   // t/h per boiler
     const sprayAvailable = this.fwPressure > this.drumPressure + 1.0 && this.msFlow > 30;
-    if (this.tempCtrlAuto && sprayAvailable) {
+    const msSP = this.msTempSetpoint || DESIGN.steam.mainSteamTemp;
+    if (this.msSprayManual) {
+      // Operator desk: the stage-2 attemperator is positioned by hand. Stage 1
+      // is superheater protection and stays where the automatic control put
+      // it — that is not the operator's valve to play with.
+      this.spray2Cmd = clamp(this.spray2Manual || 0, 0, 100) / 100 * spray1Max;
+    } else if (this.tempCtrlAuto && sprayAvailable) {
       // Stage 1 only protects the secondary superheater (it should sit shut in
       // normal service); stage 2 trims the final steam temperature.
       this.spray1Cmd = clamp(this.tempCtrl1.step(-tSh, -(DESIGN.steam.mainSteamTemp + 14), dt), 0, 100) / 100 * spray1Max;
-      this.spray2Cmd = clamp(this.tempCtrl2.step(-this.msTemp, -DESIGN.steam.mainSteamTemp, dt), 0, 100) / 100 * spray1Max;
+      this.spray2Cmd = clamp(this.tempCtrl2.step(-this.msTemp, -msSP, dt), 0, 100) / 100 * spray1Max;
     }
+    this.spray1Max = spray1Max;   // so the console can show the valve as a %
     const sprayRate = clamp((this.fwPressure - this.drumPressure - 1.0) * 60, 0, 1);
     // an attemperator can only inject a limited fraction of the steam flow
     const sprayCap = Math.max(0, 0.18 * this.msFlow);
@@ -424,9 +442,10 @@ class Boiler {
       // Reheater attemperator.  A real machine trims reheat temperature with
       // the gas bypass damper or burner tilt and only uses the emergency spray
       // as a last resort, because every tonne of spray costs cycle efficiency.
+      const rhSP = (this.rhTempSetpoint || DESIGN.steam.reheatOutletTemp) + 8;
       if (this.tempCtrlAuto && this.rhFlow > 20) {
         this.rhSprayCmd = clamp(this.tempCtrlRh.step(-this.rhOutTemp,
-          -(DESIGN.steam.reheatOutletTemp + 8), dt), 0, 100) / 100 * DESIGN.steam.mainSteamFlow * 0.02;
+          -rhSP, dt), 0, 100) / 100 * DESIGN.steam.mainSteamFlow * 0.02;
       } else this.rhSprayCmd = 0;
       this.rhSpray = Math.max(this.rhSprayCmd || 0,
         this.rhOutTemp > DESIGN.steam.reheatOutletTemp + 6

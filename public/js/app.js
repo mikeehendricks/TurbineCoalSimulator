@@ -396,6 +396,7 @@ function render() {
   history = s.meta ? null : history;
   if (scene) scene.bind(s);
   renderAux(s);
+  renderDesk(s);
   drawCharts(s);
 
   /* ---- tutorial, sound and autopilot (driven from the live snapshot) ---- */
@@ -514,6 +515,177 @@ function chart(cv, data, keys, colors, fixedRange, r1, r2) {
  * snapshot would fight with the operator's pointer and drop clicks.
  */
 let auxBuilt = false;
+/**
+ * The operator manual desk.
+ *
+ * Mirrors MANUAL_DESK in server/sim/engine.js. The server is the authority and
+ * refuses any key it does not know, so this list only has to agree with it on
+ * the names — it is kept here rather than fetched because the panel has to
+ * render before the first snapshot lands.
+ *
+ * Every item is a value the automatic controls write each tick. In AUTO the
+ * slider is disabled and simply follows what the sequencer is doing. Taking an
+ * item to MANUAL seeds the operator's value from the plant's current value, so
+ * the transfer is bumpless rather than a step.
+ */
+function deskGroups() {
+  const boiler = (n) => {
+    const b = (st) => (st.boilers && st.boilers[n]) || {};
+    return {
+      title: `Boiler ${n === 0 ? 'A' : 'B'}`, items: [
+        { key: `fd:${n}`, label: 'FD fan speed', unit: '%', min: 0, max: 100, step: 1,
+          pv: (st) => b(st).fdSpeed || 0 },
+        { key: `id:${n}`, label: 'ID fan speed', unit: '%', min: 0, max: 100, step: 1,
+          pv: (st) => b(st).idSpeedBase || 0 },
+        { key: `pa:${n}`, label: 'PA fan speed', unit: '%', min: 0, max: 100, step: 1,
+          pv: (st) => b(st).paSpeed || 0 },
+        { key: `vent:${n}`, label: 'Start-up vent', unit: 't/h', min: 0, max: 600, step: 5,
+          pv: (st) => b(st).ventDemand || 0 },
+        // `seed` is what the automatic control last had the FINAL ELEMENT at —
+        // for the drum level loop that is a feedwater flow in t/h, not a level
+        // in mm. Seeding a flow from a level is how a bumpless transfer turns
+        // into a trip.
+        { key: `level:${n}`, label: 'Drum level', unit: 'mm', min: -250, max: 250, step: 5,
+          loop: true, manualUnit: 't/h', manualMin: 0, manualMax: 1150,
+          pv: (st) => (b(st).drumLevelTotal || 0), sp: (st) => b(st).levelSetpoint || 0,
+          seed: (st) => b(st).fwFlow || 0 },
+        { key: `mstemp:${n}`, label: 'Main steam temp', unit: '\u00b0C', min: 470, max: 570, step: 1,
+          loop: true, manualUnit: '%', manualMin: 0, manualMax: 100,
+          pv: (st) => b(st).msTemp || 0, sp: (st) => b(st).msTempSetpoint || 0,
+          seed: (st) => b(st).spray2Pct || 0 },
+        { key: `rhtemp:${n}`, label: 'Reheat steam temp', unit: '\u00b0C', min: 470, max: 570, step: 1,
+          loop: true, manualUnit: '%', manualMin: 0, manualMax: 100,
+          pv: (st) => b(st).rhOutTemp || 0, sp: (st) => b(st).rhTempSetpoint || 0,
+          seed: (st) => b(st).rhGasDamper || 0 },
+      ],
+    };
+  };
+  return [boiler(0), boiler(1)];
+}
+
+let deskBuilt = false;
+const deskPending = new Map();      // key -> timer, so a drag sends one command
+function renderDesk(s) {
+  const host = $('#manualPanel');
+  if (!host || !s) return;
+  const groups = deskGroups();
+  const desk = (s.meta && s.meta.manual) || {};
+
+  if (!deskBuilt) {
+    host.innerHTML = groups.map((g, gi) => `
+      <div class="mangrp">
+        <h4>${g.title}</h4>
+        ${g.items.map((it, ii) => `
+          <div class="manrow" data-gi="${gi}" data-ii="${ii}" data-key="${it.key}">
+            <span class="nm" title="${it.label}">${it.label}</span>
+            <input type="range" aria-label="${it.label}">
+            <span class="val" title="measured value · what the desk is asking for">—</span>
+            <button class="btn" type="button">AUTO</button>
+          </div>`).join('')}
+      </div>`).join('');
+    deskBuilt = true;
+  }
+
+  for (let gi = 0; gi < groups.length; gi++) {
+    for (let ii = 0; ii < groups[gi].items.length; ii++) {
+      const it = groups[gi].items[ii];
+      const row = host.querySelector(`.manrow[data-gi="${gi}"][data-ii="${ii}"]`);
+      if (!row) continue;
+      const e = desk[it.key] || {};
+      const manual = e.on === true;
+      const slider = row.querySelector('input[type=range]');
+      let auto = 0;
+      const btn = row.querySelector('button');
+      const val = row.querySelector('.val');
+
+      const lo = manual && it.loop ? it.manualMin : it.min;
+      const hi = manual && it.loop ? it.manualMax : it.max;
+      let set = manual ? (Number.isFinite(e.value) ? e.value : 0)
+        : (it.loop ? (Number.isFinite(e.sp) ? e.sp : (it.sp ? it.sp(s) : lo)) : 0);
+      set = Math.max(lo, Math.min(hi, set));
+
+      if (slider.min !== String(lo)) slider.min = String(lo);
+      if (slider.max !== String(hi)) slider.max = String(hi);
+      slider.step = String(it.step);
+      // Do not fight the operator: the slider is only driven from the model
+      // while it is not being dragged, and never in MANUAL.
+      if (document.activeElement !== slider) {
+        // The slider always means "the value this control is asking for": in
+        // MANUAL the operator's number, in AUTO whatever the automatic control
+        // is demanding (its setpoint for a loop, its own output for a drive).
+        auto = it.loop ? (it.sp ? it.sp(s) : it.pv(s)) : it.pv(s);
+        slider.value = String(manual ? set : Math.max(lo, Math.min(hi, auto)));
+      }
+      slider.disabled = !manual;
+
+      let pv = 0;
+      try { pv = it.pv(s); } catch { pv = 0; }
+      const unit = manual && it.loop ? it.manualUnit : it.unit;
+      const shown = Number.isFinite(Number(slider.value)) ? Number(slider.value) : set;
+      val.innerHTML = `${pv.toFixed(it.step < 1 ? 1 : 0)}<i> ${it.unit}</i>`
+        + ` → ${shown.toFixed(0)}<i> ${unit}</i>`;
+
+      btn.textContent = manual ? 'MANUAL' : 'AUTO';
+      btn.className = `btn${manual ? ' manual' : ''}`;
+      row.classList.toggle('in-manual', manual);
+    }
+  }
+}
+
+/** Send a desk change, coalesced so dragging a slider is one command, not 200. */
+function deskSend(key, on, value, sp) {
+  const prev = deskPending.get(key);
+  if (prev) clearTimeout(prev);
+  deskPending.set(key, setTimeout(() => {
+    deskPending.delete(key);
+    send({ type: 'command', cmd: 'manual', value: { key, on, value, sp } });
+  }, 120));
+}
+
+function deskClick(e) {
+  if (e.target.closest('input')) return;   // dragging the slider is not a mode change
+  const row = e.target.closest('.manrow');
+  if (!row) return;
+  const gi = Number(row.dataset.gi); const ii = Number(row.dataset.ii);
+  const it = deskGroups()[gi] && deskGroups()[gi].items[ii];
+  if (!it || !state) return;
+  const e2 = (state.meta && state.meta.manual && state.meta.manual[it.key]) || {};
+  const manual = e2.on === true;
+  if (manual) {
+    // Back to automatic. The setpoint is kept, so the loop resumes wherever the
+    // operator left it rather than snapping to some default.
+    deskSend(it.key, false, 0, e2.sp);
+    return;
+  }
+  // Bumpless transfer: start the operator's value at whatever the automatic
+  // control last had the final element at, so taking a fan to MANUAL does not
+  // step it to zero and stall the fire.
+  let seed = 0;
+  try { seed = (it.seed || it.pv)(state); } catch { seed = 0; }
+  const lo = it.loop ? it.manualMin : it.min;
+  const hi = it.loop ? it.manualMax : it.max;
+  seed = Math.max(lo, Math.min(hi, seed || lo));
+  deskSend(it.key, true, seed, e2.sp);
+}
+
+function deskSlide(e) {
+  const row = e.target.closest('.manrow');
+  if (!row || !state) return;
+  const gi = Number(row.dataset.gi); const ii = Number(row.dataset.ii);
+  const it = deskGroups()[gi] && deskGroups()[gi].items[ii];
+  if (!it) return;
+  const e2 = (state.meta && state.meta.manual && state.meta.manual[it.key]) || {};
+  if (e2.on !== true) return;                 // in AUTO the slider only reports
+  const v = Number(e.target.value);
+  const val = row.querySelector('.val');
+  if (val) {
+    let pv = 0; try { pv = it.pv(state); } catch { pv = 0; }
+    val.innerHTML = `${pv.toFixed(it.step < 1 ? 1 : 0)}<i> ${it.unit}</i>`
+      + ` → ${v.toFixed(0)}<i> ${it.manualUnit || it.unit}</i>`;
+  }
+  deskSend(it.key, true, v, e2.sp);
+}
+
 function renderAux(s) {
   const host = $('#auxPanel');
   if (!host) return;
@@ -778,6 +950,11 @@ async function init() {
   });
 
   $('#auxPanel').addEventListener('click', auxClick);
+  // Manual desk: the slider commits on input (coalesced in deskSend) and the
+  // AUTO/MANUAL button is a click on the row's button.
+  $('#manualPanel').addEventListener('click', deskClick);
+  $('#manualPanel').addEventListener('input', deskSlide);
+  $('#btnDeskClear').addEventListener('click', () => cmd('manualClear'));
   $('#btnStart').addEventListener('click', () => cmd('start'));
   $('#btnShutdown').addEventListener('click', () => cmd('shutdown'));
   $('#btnTrip').addEventListener('click', () => cmd('tripTurbine'));

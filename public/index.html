@@ -282,19 +282,25 @@
   #btnSound.on{background:var(--btn-pri-bg);border-color:var(--btn-pri-brd);color:var(--btn-pri-txt)}
 
   /* ---- manual desk: analog setpoints with AUTO / MANUAL ---- */
-  #manualPanel{display:flex;flex-direction:column;gap:9px}
+  #manualPanel{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:9px;
+    align-items:start}
   .mangrp{border:1px solid var(--line);border-radius:5px;background:var(--panel);overflow:hidden}
   .mangrp>h4{margin:0;padding:5px 8px;font-size:10.5px;letter-spacing:.6px;color:var(--txt-mid);
     background:var(--panel2);border-bottom:1px solid var(--line);text-transform:uppercase;font-weight:600}
-  .manrow{display:flex;align-items:center;gap:7px;padding:5px 8px;border-top:1px solid var(--panel3)}
+  /* Two lines per item: label and mode on top, slider and numbers underneath.
+     A single line in a ~300 px pane left "Reheat steam temp" ellipsised and the
+     slider 60 px wide, which is not enough to set anything with a mouse. */
+  .manrow{display:grid;grid-template-columns:1fr auto;grid-template-areas:"name mode" "slider val";
+    gap:3px 7px;padding:5px 8px;border-top:1px solid var(--panel3);align-items:center}
   .mangrp>.manrow:first-of-type{border-top:none}
-  .manrow .nm{flex:0 0 96px;font-size:11px;color:var(--txt);white-space:nowrap;
-    overflow:hidden;text-overflow:ellipsis}
-  .manrow input[type=range]{flex:1;min-width:52px}
-  .manrow .val{flex:0 0 62px;font-size:10.5px;color:var(--txt-hi);text-align:right;
+  .manrow .nm{grid-area:name;font-size:11px;color:var(--txt);white-space:nowrap;
+    overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .manrow input[type=range]{grid-area:slider;width:100%;min-width:0;height:18px;margin:0}
+  .manrow .val{grid-area:val;font-size:10.5px;color:var(--txt-hi);text-align:right;
     white-space:nowrap}
-  .manrow .val i{font-style:normal;color:var(--dim);font-size:9px}
-  .manrow button.btn{padding:2px 6px;font-size:9.5px;min-width:56px;letter-spacing:.4px}
+  .manrow .val i{font-style:normal;color:var(--dim);font-size:9.5px}
+  .manrow button.btn{grid-area:mode;padding:2px 6px;font-size:9.5px;min-width:56px;
+    letter-spacing:.4px;justify-self:end}
   .manrow button.btn.manual{background:var(--btn-warn-bg);border-color:var(--btn-warn-brd);
     color:var(--btn-warn-txt)}
   .manrow.in-manual{background:var(--al-high-bg)}
@@ -484,7 +490,18 @@
       </div>
 
       <div class="pane" id="p-aux">
-        <div class="auxhint">Individual drives. The start-up and shut-down
+        <p class="mandesk-note">Every number below is one the automatic controls
+          write on every tick. Take an item to <b>MANUAL</b> and the operator's
+          value is used instead of the sequencer's — it starts at whatever the
+          plant is already doing, so nothing jumps. The protections still trip
+          on what the plant actually does.</p>
+        <div style="margin:0 0 8px">
+          <button class="btn" id="btnDeskClear" title="Hand every loop and drive back to the automatic controls">↺ ALL AUTO</button>
+        </div>
+        <div id="manualPanel"></div>
+
+        <div class="secthd">Individual drives</div>
+        <div class="auxhint">The start-up and shut-down
           sequencers run these themselves, so use them to set up a scenario, to
           trip a single auxiliary by hand, or to see what a drive is doing.</div>
         <div id="auxPanel"></div>
