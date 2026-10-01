@@ -342,6 +342,22 @@ function selfRestart(push) {
  * Every step now reports what happened, and a bare `node server/server.js`
  * falls back to restarting itself rather than doing nothing.
  */
+/**
+ * Does the systemd unit bring itself back when the process exits?
+ *
+ * If it does, exiting is the correct and safe way to restart: spawning our own
+ * replacement would start a second process outside systemd's control that then
+ * races the supervised one for the listening port, and one of the two dies on
+ * EADDRINUSE. That is worse than the update failing.
+ */
+function unitRestartsItself(svc) {
+  try {
+    const r = spawnSync('systemctl', ['show', '-p', 'Restart', '--value', `${svc}.service`], { encoding: 'utf8' });
+    if (r.status !== 0) return false;
+    return /^(always|on-failure|on-abnormal|on-abort)$/m.test((r.stdout || '').trim());
+  } catch { return false; }
+}
+
 function restartService(push) {
   const svc = process.env.UPDATE_SERVICE || 'turbine-coal-simulator';
   const pm2Id = process.env.pm_id || '';
@@ -351,15 +367,34 @@ function restartService(push) {
     const r = spawnSync('pm2', ['restart', pm2Id], { encoding: 'utf8' });
     push(((r.stdout || '') + (r.stderr || '')).trim() || '(no output)');
     if (r.status === 0) { push('pm2 accepted the restart.'); return; }
-    push(`pm2 restart exited ${r.status} — falling back to a self-restart.`);
+    push(`pm2 restart exited ${r.status}.`);
   } else if (process.env.INVOCATION_ID) {
     // Set by systemd for every unit it starts, so it is a reliable way to know
-    // this process is supervised: exiting would only work if Restart=always.
+    // this process is supervised.
     push(`Restarting the systemd unit ${svc}...`);
-    const r = spawnSync('sudo', ['-n', 'systemctl', 'restart', svc], { encoding: 'utf8' });
-    push(((r.stdout || '') + (r.stderr || '')).trim() || '(no output)');
-    if (r.status === 0) { push(`systemd accepted the restart of ${svc}.`); return; }
-    push(`systemctl restart exited ${r.status} — falling back to a self-restart.`);
+    // Try the absolute path the installer's sudoers rule grants first. sudo
+    // resolves a bare "systemctl" through secure_path, which on a merged-/usr
+    // system is /usr/bin/systemctl — and a rule written for /bin/systemctl
+    // will not match it, so the call is refused as needing a password.
+    let done = false;
+    for (const bin of ['/bin/systemctl', '/usr/bin/systemctl', 'systemctl']) {
+      if (bin.startsWith('/') && !fs.existsSync(bin)) continue;
+      const r = spawnSync('sudo', ['-n', bin, 'restart', svc], { encoding: 'utf8' });
+      const out = ((r.stdout || '') + (r.stderr || '')).trim();
+      if (r.status === 0) {
+        push(`${bin} restart ${svc}: accepted.`);
+        done = true;
+        break;
+      }
+      push(`${bin} restart ${svc}: exited ${r.status}${out ? ' — ' + out.replace(/\s+/g, ' ').slice(0, 200) : ''}`);
+    }
+    if (done) return;
+    if (unitRestartsItself(svc)) {
+      push(`Could not tell systemd to restart, but ${svc} is configured with Restart=always — `
+        + 'exiting so systemd brings the unit back on the new code.');
+      return;
+    }
+    push('systemd will not restart the unit on its own, so this process will restart itself.');
   } else {
     push('No supervisor detected (no systemd INVOCATION_ID, not run under pm2) — restarting this process directly.');
   }
