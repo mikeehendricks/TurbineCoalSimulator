@@ -14,6 +14,13 @@
 #
 # Before this handled the second case it simply refused with "not a git working
 # copy", which silently stranded every install made by install.sh.
+#
+# A .git directory on its own is not enough to take the git path, though. A
+# working copy with no "origin" remote — a clone that was copied between
+# machines, or one whose .git/config was lost — would pass the old `[ -d .git ]`
+# test and then fail at `git reset --hard origin/main` with an "unknown
+# revision" error. Now the git path is only taken when it can actually be made
+# to work, and anything that fails falls back to a clean re-clone.
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -25,31 +32,46 @@ cd "$APP_DIR"
 
 echo "==> Updating $(basename "$APP_DIR") from ${BRANCH}"
 
+# Runtime state that belongs to this installation and must never be replaced.
+# .git is excluded too: a re-clone must not destroy the working copy's history
+# when we are only falling back to cloning because git could not be used.
+EXCLUDES=(--exclude data --exclude logs --exclude node_modules --exclude .env --exclude .git)
+
+git_usable() {
+  [ -d .git ] || return 1
+  git rev-parse --git-dir >/dev/null 2>&1 || return 1
+  git remote get-url origin >/dev/null 2>&1 || return 1
+  git rev-parse --verify --quiet "origin/${BRANCH}" >/dev/null 2>&1 || return 1
+  return 0
+}
+
 MODE=""
-if [ -d .git ]; then
-  MODE=git
-  echo "==> Discarding any local changes to tracked files"
-  git fetch --all --prune
-  git checkout -- . 2>/dev/null || true
-  git reset --hard "origin/${BRANCH}"
-  git submodule update --init --recursive 2>/dev/null || true
-else
+if git_usable; then
+  echo "==> Git working copy — discarding local changes and resetting to origin/${BRANCH}"
+  if git fetch --all --prune && git checkout -- . 2>/dev/null && git reset --hard "origin/${BRANCH}"; then
+    MODE=git
+    git submodule update --init --recursive 2>/dev/null || true
+  else
+    echo "==> The git update failed — falling back to a clean re-clone"
+  fi
+elif [ -d .git ]; then
+  echo "==> .git is present but origin/${BRANCH} cannot be resolved — falling back to a clean re-clone"
+fi
+
+if [ -z "$MODE" ]; then
   MODE=clone
-  echo "==> Not a git working copy — re-cloning ${REPO} and copying the files in"
+  echo "==> Re-cloning ${REPO} and copying the files in"
   TMP="$(mktemp -d)"
   trap 'rm -rf "$TMP"' EXIT
   git clone --depth 1 --branch "$BRANCH" "$REPO" "$TMP/src"
   # capture the commit before the clone's own .git is discarded
   COMMIT="$(git -C "$TMP/src" rev-parse HEAD 2>/dev/null || true)"
   rm -rf "$TMP/src/.git"
-  # Copy everything except runtime state, which belongs to this installation.
   if command -v rsync >/dev/null 2>&1; then
-    rsync -a --delete \
-      --exclude data --exclude logs --exclude node_modules --exclude .env \
-      "$TMP/src/" "$APP_DIR/"
+    rsync -a --delete "${EXCLUDES[@]}" "$TMP/src/" "$APP_DIR/"
   else
-    (cd "$TMP/src" && tar --exclude=./data --exclude=./logs --exclude=./node_modules --exclude=./.env -cf - .) \
-      | (cd "$APP_DIR" && tar -xf -)
+    (cd "$TMP/src" && tar --exclude=./data --exclude=./logs --exclude=./node_modules \
+      --exclude=./.env --exclude=./.git -cf - .) | (cd "$APP_DIR" && tar -xf -)
   fi
   rm -rf "$TMP"
 fi

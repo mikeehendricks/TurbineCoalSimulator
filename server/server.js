@@ -79,6 +79,17 @@ function localVersion() {
   };
 }
 
+/**
+ * The identity of the code that is actually running, read once at start-up.
+ *
+ * This must not follow the files on disk. It used to, and an install that had
+ * been updated but not restarted reported the new commit while executing the
+ * old build — the admin page said "up to date", the footer showed the new hash,
+ * and none of the new features were there. A process cannot change what it has
+ * loaded, so its stamp must not change either; only a restart may move it.
+ */
+const RUNNING_VERSION = localVersion();
+
 /* ================================================================== *
  *  Plant + tick loop
  * ================================================================== */
@@ -247,13 +258,21 @@ function cookieToken(req) {
 /* ================================================================== *
  *  Update system — source of truth is the GitHub repository
  * ================================================================== */
-let updateCache = { checkedAt: null, available: false, remote: null, local: localVersion(), error: null };
+const { spawn, spawnSync } = require('child_process');
+let updateCache = { checkedAt: null, available: false, remote: null, local: RUNNING_VERSION, error: null };
+// The job outlives the process: applying an update restarts this process, and
+// the console is polling for the result across exactly that gap. Without this
+// the poll found nothing after the restart and the operator sat watching a
+// spinner that never resolved.
+const UPDATE_JOB_FILE = path.join(DATA, 'update-job.json');
+function saveUpdateJob() { try { writeJson(UPDATE_JOB_FILE, updateJob || null); } catch { /* best effort */ } }
 let updateJob = null;      // { id, status, log, started, finished }
+try { const prev = readJson(UPDATE_JOB_FILE, null); if (prev && prev.status) updateJob = prev; } catch { /* none yet */ }
 
 async function checkForUpdate(force = false) {
   if (updateJob && updateJob.status === 'running') return updateCache;
   if (!force && updateCache.checkedAt && Date.now() - Date.parse(updateCache.checkedAt) < 60_000) return updateCache;
-  const local = localVersion();
+  const local = RUNNING_VERSION;
   try {
     const ctl = new AbortController();
     const t = setTimeout(() => ctl.abort(), 8000);
@@ -287,9 +306,68 @@ async function checkForUpdate(force = false) {
   return updateCache;
 }
 
+/** Shell-quote one argument so a path with a space cannot become two. */
+function shq(a) { return `'${String(a).replace(/'/g, `'\''`)}'`; }
+
+/**
+ * Restart this process in place, for installs with no supervisor.
+ *
+ * The replacement cannot simply be spawned now: it would race the process that
+ * is still holding the listening port and die on EADDRINUSE. So a detached
+ * watchdog is armed first, which waits for this process to actually exit and
+ * only then re-runs the same command in the same directory with the same
+ * environment.
+ */
+function selfRestart(push) {
+  const waitForDeath = `for i in $(seq 1 300); do kill -0 ${process.pid} 2>/dev/null || break; sleep 0.2; done`;
+  const relaunch = `exec ${shq(process.execPath)} ${process.argv.slice(1).map((a) => shq(a)).join(' ')}`;
+  const script = `cd ${shq(ROOT)} || exit 1; ${waitForDeath}; sleep 1; ${relaunch}`;
+  try {
+    const wd = spawn('bash', ['-c', script], { detached: true, stdio: 'ignore', env: process.env });
+    wd.unref();
+    push('Watchdog armed — this process will exit and come back on the new code.');
+    return true;
+  } catch (e) {
+    push(`Could not arm the restart watchdog: ${e.message}`);
+    return false;
+  }
+}
+
+/**
+ * Get the new code actually running.
+ *
+ * The old chain ended in `|| true`, so a job was marked "completed
+ * successfully" even when nothing had restarted — on an install with no
+ * supervisor the process went on serving the build it had loaded at start-up.
+ * Every step now reports what happened, and a bare `node server/server.js`
+ * falls back to restarting itself rather than doing nothing.
+ */
+function restartService(push) {
+  const svc = process.env.UPDATE_SERVICE || 'turbine-coal-simulator';
+  const pm2Id = process.env.pm_id || '';
+
+  if (pm2Id) {
+    push(`Restarting under pm2 (id ${pm2Id})...`);
+    const r = spawnSync('pm2', ['restart', pm2Id], { encoding: 'utf8' });
+    push(((r.stdout || '') + (r.stderr || '')).trim() || '(no output)');
+    if (r.status === 0) { push('pm2 accepted the restart.'); return; }
+    push(`pm2 restart exited ${r.status} — falling back to a self-restart.`);
+  } else if (process.env.INVOCATION_ID) {
+    // Set by systemd for every unit it starts, so it is a reliable way to know
+    // this process is supervised: exiting would only work if Restart=always.
+    push(`Restarting the systemd unit ${svc}...`);
+    const r = spawnSync('sudo', ['-n', 'systemctl', 'restart', svc], { encoding: 'utf8' });
+    push(((r.stdout || '') + (r.stderr || '')).trim() || '(no output)');
+    if (r.status === 0) { push(`systemd accepted the restart of ${svc}.`); return; }
+    push(`systemctl restart exited ${r.status} — falling back to a self-restart.`);
+  } else {
+    push('No supervisor detected (no systemd INVOCATION_ID, not run under pm2) — restarting this process directly.');
+  }
+  selfRestart(push);
+}
+
 function runUpdate() {
   if (updateJob && updateJob.status === 'running') return updateJob;
-  const { spawn } = require('child_process');
   const job = { id: Date.now(), status: 'running', log: [], started: nowIso(), finished: null, ok: false };
   updateJob = job;
   const script = path.join(ROOT, 'scripts', 'update.sh');
@@ -297,25 +375,26 @@ function runUpdate() {
   const cmd = useScript ? 'bash' : 'git';
   const args = useScript ? [script] : ['pull', '--ff-only'];
   const child = spawn(cmd, args, { cwd: ROOT, env: process.env });
-  const push = (s) => { job.log.push(String(s).replace(/\s+$/, '')); if (job.log.length > 400) job.log.shift(); };
+  const push = (s) => { job.log.push(String(s).replace(/\s+$/, '')); if (job.log.length > 400) job.log.shift(); saveUpdateJob(); };
+  saveUpdateJob();
   child.stdout.on('data', d => push(d.toString()));
   child.stderr.on('data', d => push(d.toString()));
-  child.on('error', e => { push(`error: ${e.message}`); job.status = 'failed'; job.finished = nowIso(); });
+  child.on('error', e => { push(`error: ${e.message}`); job.status = 'failed'; job.finished = nowIso(); saveUpdateJob(); });
   child.on('close', (code) => {
     job.ok = code === 0;
     job.status = code === 0 ? 'completed' : 'failed';
     job.finished = nowIso();
-    push(code === 0 ? 'Update completed successfully.' : `Update exited with code ${code}.`);
-    if (code === 0) {
-      updateCache = { ...updateCache, available: false, local: localVersion(), checkedAt: nowIso() };
-      push('Restarting service to apply the update...');
-      const svc = process.env.UPDATE_SERVICE || '';
-      const how = spawn('bash', ['-lc', svc
-        ? `sudo systemctl restart ${svc} || sudo service ${svc} restart || true`
-        : 'pm2 restart turbine-coal-simulator 2>/dev/null || sudo systemctl restart turbine-coal-simulator 2>/dev/null || true']);
-      how.stdout.on('data', d => push(d.toString()));
-      how.stderr.on('data', d => push(d.toString()));
+    saveUpdateJob();
+    if (code !== 0) {
+      push(`Update exited with code ${code} — nothing was restarted, the running build is unchanged.`);
+      return;
     }
+    push('Update applied to disk. Restarting so the new code is what actually serves you...');
+    restartService(push);
+    saveUpdateJob();
+    // Save the outcome before the process goes away: the console polls for this
+    // job and needs to still find it when the new process answers.
+    setTimeout(() => { saveUpdateJob(); process.exit(0); }, 1200);
   });
   return job;
 }
@@ -350,7 +429,7 @@ app.get('/api/snapshot', (req, res) => {
 });
 
 app.get('/api/design', (req, res) => {
-  res.json({ design: DESIGN, version: localVersion() });
+  res.json({ design: DESIGN, version: RUNNING_VERSION });
 });
 
 app.get('/api/history', (req, res) => {
@@ -394,7 +473,18 @@ app.post('/api/fault/clear', (req, res) => {
 const adminApi = express.Router();
 
 adminApi.get('/status', (req, res) => {
-  res.json({ registered: adminState.registered, registrationOpen: !adminState.registered });
+  // Report whether THIS request is already signed in. It used to answer only
+  // "is an administrator registered", so the console had no way to tell that
+  // the cookie it was sending was still good: a refresh dropped the operator
+  // back on the sign-in form with a perfectly valid twelve-hour session.
+  const sess = adminFromToken(cookieToken(req));
+  res.json({
+    registered: adminState.registered,
+    registrationOpen: !adminState.registered,
+    loggedIn: !!sess,
+    username: sess ? sess.username : null,
+    expires: sess ? sess.expires : null,
+  });
 });
 
 adminApi.post('/register', (req, res) => {
@@ -538,7 +628,7 @@ adminApi.get('/system', (req, res) => {
     node: process.version,
     platform: process.platform,
     memory: process.memoryUsage(),
-    version: localVersion(),
+    version: RUNNING_VERSION,
     simTime: plant.simTime,
     mode: plant.mode,
     history: plant.history.length,
@@ -623,7 +713,7 @@ app.get('/robots.txt', (req, res) => {
 // and a blank stamp looks exactly like a missing one. Rendered here it is in
 // the markup the browser receives, so it cannot go missing that way.
 function buildLabel() {
-  const v = localVersion();
+  const v = RUNNING_VERSION;
   return `v${v.version || '—'}` + (v.commit ? ` · ${v.commit}` : '');
 }
 
@@ -712,7 +802,7 @@ wss.on('connection', (ws, req) => {
   ws.visitorId = id;
   trackVisitor({ id, ip, userAgent: ua, page: '/ws' });
   try {
-    ws.send(JSON.stringify({ type: 'welcome', data: { ...plant.snapshot(true), version: localVersion() } }));
+    ws.send(JSON.stringify({ type: 'welcome', data: { ...plant.snapshot(true), version: RUNNING_VERSION } }));
   } catch { /* ignore */ }
 
   ws.on('message', (raw) => {

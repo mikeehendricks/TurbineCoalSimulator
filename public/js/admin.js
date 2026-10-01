@@ -43,6 +43,23 @@ async function loadStatus() {
   return st;
 }
 
+/**
+ * Pick the session back up after a reload.
+ *
+ * The cookie survives a refresh but the console never asked whether it was
+ * still good — it only asked whether an administrator existed, then showed the
+ * sign-in form. Signing in again worked, so this looked like a two-minute
+ * session timeout rather than a page that forgot to check.
+ */
+async function resumeSession() {
+  let st;
+  try { st = await api('/api/admin/status'); } catch { return false; }
+  if (!st || !st.loggedIn) return false;
+  $('#authTitle').textContent = `Administrator console — signed in as ${st.username}`;
+  await enterConsole();
+  return true;
+}
+
 async function register() {
   const username = $('#u').value.trim();
   const password = $('#p').value;
@@ -87,6 +104,7 @@ async function logout() {
   if (updateJobPoll) clearInterval(updateJobPoll);
   $('#console').classList.add('hidden');
   $('#authCard').classList.remove('hidden');
+  $('#authTitle').textContent = 'Administrator sign-in';
   await loadStatus();
 }
 
@@ -153,6 +171,40 @@ function showJob(job) {
   }
 }
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Is the server answering? Any authenticated request will do — a 401 still
+ * proves the process is up, so only a network error counts as "down".
+ */
+async function serverUp() {
+  try { await api('/api/admin/system'); return true; } catch { return false; }
+}
+
+/**
+ * Reload only once the new process is actually serving.
+ *
+ * Reloading the moment the job says "completed" used to load the very build we
+ * were trying to leave: the old process was still holding the port and had not
+ * begun its restart. Wait for it to go away, then wait for it to come back.
+ */
+async function reloadAfterRestart() {
+  msg($('#updMsg'), 'Update applied — waiting for the service to restart…', 'warn');
+  await sleep(2500);
+  const downBy = Date.now() + 90000;
+  while (Date.now() < downBy) {
+    if (!(await serverUp())) break;
+    await sleep(1200);
+  }
+  msg($('#updMsg'), 'Service restarting — waiting for it to answer again…', 'warn');
+  const backBy = Date.now() + 120000;
+  while (Date.now() < backBy) {
+    await sleep(1500);
+    if (await serverUp()) break;
+  }
+  location.reload();
+}
+
 async function runUpdate() {
   const btn = $('#updateNowBtn');
   if (btn) { btn.disabled = true; btn.textContent = 'Updating…'; }
@@ -161,19 +213,37 @@ async function runUpdate() {
   } catch (e) { msg($('#updMsg'), e.message, 'err'); return; }
   if (updateJobPoll) clearInterval(updateJobPoll);
   let reloaded = false;
+  let sawRunning = false;
+  let polls = 0;
   updateJobPoll = setInterval(async () => {
     let j;
     try { j = (await api('/api/admin/update/job')).job; } catch { return; }
-    if (!j) return;
+    if (!j) {
+      // The server answered but has no job — it has restarted since this one
+      // was running, which means the update finished. Reload instead of
+      // polling forever against a process that has forgotten the job.
+      if (sawRunning && !reloaded) { reloaded = true; clearInterval(updateJobPoll); await reloadAfterRestart(); }
+      return;
+    }
+    if (j.status === 'running') sawRunning = true;
     showJob(j);
     // Requirement: when the update-completed message appears, refresh the page.
     if (!reloaded && (j.status === 'completed' || j.status === 'failed')) {
       reloaded = true;
       clearInterval(updateJobPoll);
-      msg($('#updMsg'), j.status === 'completed'
-        ? 'Update completed — reloading the page…'
-        : 'Update reported a failure — reloading the page…', j.status === 'completed' ? 'ok' : 'err');
-      setTimeout(() => location.reload(), 1600);
+      if (j.status === 'failed') {
+        msg($('#updMsg'), 'Update reported a failure — reloading the page…', 'err');
+        setTimeout(() => location.reload(), 1600);
+      } else {
+        await reloadAfterRestart();
+      }
+    }
+    // Nothing should spin for ever: if the job never finishes, say so rather
+    // than leaving the operator watching a button that says "Updating…".
+    if (++polls > 600 && !reloaded) {
+      reloaded = true;
+      clearInterval(updateJobPoll);
+      msg($('#updMsg'), 'The update did not report back within 15 minutes — reload the page to see whether it applied.', 'err');
     }
   }, 1500);
 }
@@ -230,6 +300,9 @@ function esc(s) {
 
 /* ----------------------------- init --------------------------------- */
 document.addEventListener('DOMContentLoaded', async () => {
+  // A refresh must not cost the operator their session. Only fall back to the
+  // sign-in form when there is genuinely nothing to resume.
+  try { if (await resumeSession()) return; } catch { /* fall through to the form */ }
   try { await loadStatus(); } catch (e) { msg($('#authMsg'), e.message, 'err'); }
   $('#regBtn').addEventListener('click', register);
   $('#logBtn').addEventListener('click', login);
