@@ -77,6 +77,20 @@ export class PlantScene {
     this.animate();
   }
 
+  /**
+   * Re-tint the sky and the distance fog to match the console theme.
+   * The station itself keeps its own materials — a boiler is a boiler — but
+   * a dark scene behind a light console (or the other way round) is a wall.
+   */
+  setSky(hex) {
+    if (!this.scene) return;
+    const c = new THREE.Color(hex);
+    if (this.scene.background && this.scene.background.isColor) this.scene.background.copy(c);
+    else this.scene.background = c;
+    if (this.scene.fog) this.scene.fog.color.copy(c);
+    else this.scene.fog = new THREE.Fog(hex, 260, 900);
+  }
+
   /* ------------------------------------------------------------------ */
   build() {
     const scene = new THREE.Scene();

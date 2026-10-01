@@ -615,6 +615,28 @@ async function init() {
   volEl.addEventListener('input', () => audio.setVolume(Number(volEl.value) / 100));
   paintSound();
 
+  /* ---- theme ---- */
+  // The CSS owns every colour; this only needs the one the 3D scene cannot
+  // read for itself, so it is taken from the computed token rather than
+  // duplicating the palette here where the two would drift apart.
+  const themeBtn = $('#btnTheme');
+  const paintTheme = () => {
+    const light = document.documentElement.getAttribute('data-theme') === 'light';
+    themeBtn.textContent = light ? '☀ LIGHT' : '🌙 DARK';
+    themeBtn.title = (light ? 'Switch to the dark control-room theme'
+      : 'Switch to a light theme') + ' — remembered per browser';
+    const sky = getComputedStyle(document.documentElement)
+      .getPropertyValue('--scene-sky').trim() || '#0a1520';
+    if (scene && scene.setSky) scene.setSky(sky);
+  };
+  themeBtn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('tcsim.theme', next); } catch { /* storage blocked */ }
+    paintTheme();
+  });
+  paintTheme();
+
   /* ---- shared control helpers used by the tutorial and the autopilot ---- */
   const setSpeed = (v) => {
     const sel = $('#speed');
