@@ -300,14 +300,19 @@ function esc(s) {
 
 /* ----------------------------- init --------------------------------- */
 document.addEventListener('DOMContentLoaded', async () => {
-  // A refresh must not cost the operator their session. Only fall back to the
-  // sign-in form when there is genuinely nothing to resume.
-  try { if (await resumeSession()) return; } catch { /* fall through to the form */ }
-  try { await loadStatus(); } catch (e) { msg($('#authMsg'), e.message, 'err'); }
+  // Wire every control first. Resuming a session returns early, and doing that
+  // before the handlers are attached leaves the console rendered but dead —
+  // Sign out and Refresh silently do nothing, which is worse than a sign-in
+  // prompt because it looks like the button is broken.
   $('#regBtn').addEventListener('click', register);
   $('#logBtn').addEventListener('click', login);
   $('#logoutBtn').addEventListener('click', logout);
   $('#refreshBtn').addEventListener('click', () => { refreshVisitors(); refreshSystem(); });
   $('#p').addEventListener('keydown', (e) => { if (e.key === 'Enter') register(); });
   $('#lp').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+
+  // A refresh must not cost the operator their session. Only fall back to the
+  // sign-in form when there is genuinely nothing to resume.
+  try { if (await resumeSession()) return; } catch { /* fall through to the form */ }
+  try { await loadStatus(); } catch (e) { msg($('#authMsg'), e.message, 'err'); }
 });
