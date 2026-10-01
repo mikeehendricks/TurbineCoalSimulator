@@ -122,6 +122,15 @@ function apply(restart) {
     console.error(`   Local: v${local.version} (${local.commit || 'no git'}) on ${local.branch || '?'}`);
     process.exit(2);
   }
+  // On a git install the comparison is against the remote-tracking ref, which
+  // is only as fresh as the last fetch. An install that was cloned once and
+  // never fetched again compared itself against the commit it was cloned from,
+  // so `origin/main` and HEAD agreed and it reported "up to date" for ever —
+  // measured here: five commits behind GitHub, still saying "Up to date".
+  // `git fetch` touches only the remote-tracking refs and never the working
+  // copy, so it is safe to do from a read-only status check.
+  if (local.source === 'git') git(['fetch', '--quiet', '--prune', 'origin', BRANCH]);
+
   // Ahead/behind counts, so a build that simply has its own commits (or is
   // newer than the branch) is not reported as "update available".
   let ahead = 0, behind = 0;
@@ -132,6 +141,12 @@ function apply(restart) {
     // which is how an out-of-date install went unnoticed for weeks.
     behind = -1;
   } else { behind = !!remote.sha && !remote.sha.startsWith(local.commit.slice(0, 12)) ? 1 : 0; }
+  // Backstop, for when the fetch above could not run — no route to the git
+  // remote, a single-branch or shallow clone. Compare the installed commit
+  // with what the GitHub API just reported; this is what the console's own
+  // update check does, and it cannot be fooled by a stale local ref.
+  if (behind === 0 && remote.sha && local.commit
+    && !remote.sha.startsWith(local.commit.slice(0, 12))) behind = 1;
   const tagBehind = !!remote.tag && remote.tag !== `v${local.version}`;
   const available = behind > 0 || (tagBehind && ahead === 0);
 
