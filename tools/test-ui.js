@@ -307,6 +307,13 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
       if (!last.active || last.st === 'ON_LOAD') break;
     }
     await page.evaluate(() => window.__tcsim.autopilot.disable());
+    // Hand the time acceleration back explicitly. The autopilot restores the
+    // operator's setting when it disengages, but a run-up that ends still
+    // holding load leaves 600x engaged — and at 600x this engine cannot keep up
+    // with real time on a small box, so it starves the browser and every test
+    // after this one crawls.
+    await page.evaluate(() => window.__tcsim.cmd('speedFactor', 1));
+    await wait(1500);
     s.assert(peak > before + 40 || (last && last.st === 'ON_LOAD'),
       `autopilot did not raise load: ${before.toFixed(0)} → ${peak.toFixed(0)} MW (state ${last && last.st})`);
     return { detail: `${before.toFixed(0)} → ${peak.toFixed(0)} MW, state ${last && last.st} — ${last && last.note}` };
@@ -449,6 +456,24 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
   }, { severity: 'high' });
 
   await s.test('sound tracks the plant: each bus is driven by its own variable', async () => {
+    // Establish the precondition instead of inheriting it. The autopilot test
+    // above starts from cold and can leave a trip latched (a load ramp trips on
+    // drum level, which the physics suite records separately), and a turbine
+    // bus reading zero on a stopped machine is correct — so this used to fail
+    // for a reason that had nothing to do with the sound.
+    const rpm = () => page.evaluate(() => window.__tcsim.state.turbine.speed || 0);
+    if (await rpm() < 1000) {
+      await page.evaluate(() => {
+        window.__tcsim.cmd('resetMFT', true);
+        window.__tcsim.cmd('speedFactor', 600);
+        window.__tcsim.cmd('start', true);
+      });
+      for (let i = 0; i < 30; i++) {
+        await wait(2000);
+        if (await rpm() > 2500) break;
+        if (i === 10 || i === 20) await page.evaluate(() => window.__tcsim.cmd('resetMFT', true));
+      }
+    }
     const g = await page.evaluate(() => {
       const n = window.__tcsim.audio.nodes;
       const out = {};
@@ -457,14 +482,14 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     });
     const live = Object.values(g).reduce((a, v) => a + v, 0);
     const sounding = Object.values(g).filter((v) => v > 0.005).length;
-    const rpm = await page.evaluate(() => window.__tcsim.state.turbine.speed || 0);
+    const shaftRpm = await rpm();
     s.assert(live > 0.03, `all audio buses are silent (sum ${live.toFixed(3)})`);
     s.assert(sounding >= 4, `only ${sounding} of ${Object.keys(g).length} buses are audible`);
     // Say what the machine was actually doing: a silent turbine bus on a
     // stopped machine is correct, and reporting it as a fault sends the next
     // engineer looking in the wrong place.
     s.assert(g.turbine > 0.01,
-      `turbine bus is ${g.turbine} with the machine turning at ${rpm.toFixed(0)} rpm`);
+      `turbine bus is ${g.turbine} with the machine turning at ${shaftRpm.toFixed(0)} rpm`);
     return { detail: Object.entries(g).map(([k, v]) => `${k} ${v}`).join(' · ') };
   });
 
@@ -709,6 +734,7 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
       await post('/api/command', { cmd: 'rampRate', value: 6 });
     });
     let loaded = { mw: 0, mode: '?' };
+    let retried = 0;
     for (let i = 0; i < 45; i++) {
       await wait(4000);
       loaded = await page.evaluate(() => ({
@@ -716,7 +742,23 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
         mode: window.__tcsim.state.meta.mode,
       }));
       if (loaded.mw > 150) break;
+      // A start-up that trips on the way up latches the MFT, and every further
+      // "start" is refused — so the setup used to sit out its remaining three
+      // minutes doing nothing after the first trip. Retry from a hot boiler
+      // instead; how often that is needed is recorded in the run notes.
+      if (i > 0 && i % 4 === 3) {
+        retried++;
+        await page.evaluate(() => {
+          window.__tcsim.cmd('resetMFT', true);
+          window.__tcsim.cmd('start', true);
+        });
+      }
     }
+    if (retried) s.note('Start-up needed more than one attempt',
+      `The unit tripped during this test's set-up and had to be restarted `
+      + `${retried} time(s) before it reached load. Hands-off start-ups trip on drum level `
+      + `often enough to be worth knowing about; see the physics suite note on load ramps.`,
+      'medium', 'usability');
     // Say so when the setup fails: a reset measured on a cold unit proves
     // nothing, and reporting it as a pass hides the fact.
     s.assert(loaded.mw > 150,
@@ -889,6 +931,193 @@ await page.goto(BASE + '/', { waitUntil: 'load', timeout: 60000 });
     s.assert(shown !== null, 'no boot-failure banner after app.js was blocked');
     s.assert(/reload/i.test(text), `the banner gives the operator no way out: "${text.slice(0, 80)}"`);
     return { detail: 'blocked /js/app.js → the watchdog tells the operator to hard-reload' };
+  }, { severity: 'high' });
+
+  /* ---- operator manual desk -------------------------------------------- */
+  // Until this arrived the plant ran itself: every fan speed, damper position
+  // and valve demand was written by the sequencer each tick, so an operator
+  // could start and stop a drive but never set one, and no control loop had a
+  // setpoint they could reach. These tests are about the one promise that
+  // matters: a value taken to MANUAL is not overwritten by the automatic
+  // control.
+  await s.test('the manual desk exposes every drive and control loop the sequencer writes', async () => {
+    await page.evaluate(() => window.__tcsim.cmd('manualClear'));
+    await wait(700);
+    await page.evaluate(() => document.querySelector('.tabs button[data-pane="aux"]').click());
+    await wait(1200);
+    const r = await page.evaluate(() => ({
+      groups: [...document.querySelectorAll('#manualPanel .mangrp h4')].map((h) => h.textContent.trim()),
+      rows: [...document.querySelectorAll('#manualPanel .manrow')].map((x) => ({
+        key: x.dataset.key,
+        mode: x.querySelector('button').textContent.trim(),
+        slider: !!x.querySelector('input[type=range]'),
+        readout: /→/.test(x.querySelector('.val').textContent),
+        clipped: (() => { const n = x.querySelector('.nm'); return n.scrollWidth > n.clientWidth + 1; })(),
+      })),
+    }));
+    s.assert(r.groups.length === 2, `expected one desk group per boiler, got ${r.groups.length}: ${r.groups.join(', ')}`);
+    s.assert(r.rows.length === 14, `expected 7 items per boiler, got ${r.rows.length}`);
+    const loops = r.rows.filter((x) => /level|mstemp|rhtemp/.test(x.key)).length;
+    const drives = r.rows.length - loops;
+    s.assert(loops === 6 && drives === 8, `expected 6 loops and 8 drives, found ${loops} and ${drives}`);
+    const noMode = r.rows.filter((x) => !/^(AUTO|MANUAL)$/.test(x.mode));
+    s.assert(noMode.length === 0, `${noMode.length} item(s) show no AUTO/MANUAL switch`);
+    const noSlider = r.rows.filter((x) => !x.slider);
+    s.assert(noSlider.length === 0, `${noSlider.length} item(s) offer no way to set a value`);
+    const noRead = r.rows.filter((x) => !x.readout);
+    s.assert(noRead.length === 0, `${noRead.length} item(s) show no measured value`);
+    const clip = r.rows.filter((x) => x.clipped);
+    s.assert(clip.length === 0, `${clip.length} label(s) are truncated: ${clip.map((x) => x.key).join(', ')}`);
+    return { detail: `14 items across ${r.groups.join(' and ')} — 8 drives and 6 control loops, each with a value control and an AUTO/MANUAL switch, nothing truncated` };
+  }, { severity: 'high' });
+
+  await s.test('a value taken to MANUAL is not overwritten by the automatic control', async () => {
+    // The promise the desk has to keep. Proved by pinning boiler A's FD fan
+    // while the sequencer is actually working — boiler B, which the operator
+    // has not touched, is the control for "was anything moving at all?".
+    await page.evaluate(() => { window.__tcsim.cmd('speedFactor', 600); window.__tcsim.cmd('start', true); });
+    let started = false;
+    for (let i = 0; i < 55; i++) {
+      await wait(2000);
+      const m = await page.evaluate(() => (window.__tcsim.state.meta || {}).mode);
+      if (m === 'LOADING' || m === 'ONLINE') { started = true; break; }
+      if (i === 8 || i === 24) await page.evaluate(() => window.__tcsim.cmd('resetMFT', true));
+    }
+    s.assert(started, 'the unit never reached LOADING, so the sequencer was not moving the fans and this proves nothing');
+    await page.evaluate(() => window.__tcsim.cmd('manual', { key: 'fd:0', on: true, value: 70 }));
+    await wait(2000);
+    const a0 = await page.evaluate(() => window.__tcsim.state.boilers[0].fdSpeed);
+    const b0 = await page.evaluate(() => window.__tcsim.state.boilers[1].fdSpeed);
+    await wait(10000);                       // ~100 simulated minutes at 600x
+    const a1 = await page.evaluate(() => window.__tcsim.state.boilers[0].fdSpeed);
+    const b1 = await page.evaluate(() => window.__tcsim.state.boilers[1].fdSpeed);
+    s.assert(Math.abs(a1 - 70) < 0.5, `boiler A FD fan drifted off the operator's 70 % to ${a1.toFixed(1)} %`);
+    s.assert(Math.abs(b1 - b0) > 1, `boiler B FD fan did not move (${b0.toFixed(1)} → ${b1.toFixed(1)} %), so A holding still proves nothing`);
+    s.assert(Math.abs(a0 - 70) < 0.5, `the manual value never reached the plant (${a0.toFixed(1)} %)`);
+    // Give the CPU back before the remaining tests; see the autopilot test.
+    await page.evaluate(() => { window.__tcsim.cmd('manualClear'); window.__tcsim.cmd('speedFactor', 1); });
+    await wait(1200);
+    return { detail: `over ~100 simulated minutes of an active start-up: A held at ${a1.toFixed(1)} % while the sequencer moved B ${b0.toFixed(1)} → ${b1.toFixed(1)} %` };
+  }, { severity: 'high' });
+
+  await s.test('a loop takes a setpoint in AUTO, and hands the valve over and back', async () => {
+    await page.evaluate(() => window.__tcsim.cmd('manual', { key: 'mstemp:0', on: false, sp: 545 }));
+    await wait(1800);
+    const auto = await page.evaluate(() => ({
+      sp: window.__tcsim.state.boilers[0].msTempSetpoint,
+      flag: window.__tcsim.state.boilers[0].msSprayManual,
+    }));
+    s.assert(Math.abs(auto.sp - 545) < 0.5, `the setpoint never reached the model (${auto.sp})`);
+    s.assert(!auto.flag, 'moving a setpoint took the spray valve off automatic');
+
+    await page.evaluate(() => window.__tcsim.cmd('manual', { key: 'level:0', on: true, value: 480 }));
+    await wait(3000);
+    const man = await page.evaluate(() => ({
+      auto: window.__tcsim.state.boilers[0].levelCtrlAuto,
+      fw: window.__tcsim.state.boilers[0].fwFlow,
+    }));
+    s.assert(man.auto === false, 'the drum level loop stayed automatic after being taken to MANUAL');
+    s.assert(Number.isFinite(man.fw), `feedwater flow went to ${man.fw}`);
+    await page.evaluate(() => window.__tcsim.cmd('manual', { key: 'level:0', on: false }));
+    await wait(2200);
+    const rel = await page.evaluate(() => window.__tcsim.state.boilers[0].levelCtrlAuto);
+    s.assert(rel === true, 'the drum level loop never went back to automatic');
+    return { detail: 'main steam setpoint 545 °C applied with the valve still automatic; drum level taken MANUAL at 480 t/h and released back to AUTO' };
+  }, { severity: 'high' });
+
+  await s.test('the desk refuses hostile values and ALL AUTO releases everything', async () => {
+    await page.evaluate(() => {
+      [1e9, -500, NaN, 'abc', null, undefined, 1e308].forEach((v) => {
+        window.__tcsim.cmd('manual', { key: 'fd:1', on: true, value: v });
+      });
+      window.__tcsim.cmd('manual', { key: '__proto__', on: true, value: 1 });
+      window.__tcsim.cmd('manual', { key: 'nope:0', on: true, value: 1 });
+    });
+    await wait(2600);
+    const r = await page.evaluate(() => ({
+      entry: (window.__tcsim.state.meta.manual || {})['fd:1'] || null,
+      keys: Object.keys(window.__tcsim.state.meta.manual || {}),
+      fd: window.__tcsim.state.boilers[1].fdSpeed,
+      polluted: ({}).polluted,
+    }));
+    s.assert(r.entry && Number.isFinite(r.entry.value), `desk entry is ${JSON.stringify(r.entry)}`);
+    s.assert(Number.isFinite(r.fd), `boiler B FD fan speed went to ${r.fd}`);
+    s.assert(r.entry.value >= 0 && r.entry.value <= 100, `value escaped its range: ${r.entry.value}`);
+    s.assert(!r.keys.includes('__proto__') && !r.keys.includes('nope:0'), `unknown key accepted: ${r.keys.join(', ')}`);
+    s.assert(r.polluted === undefined, 'prototype pollution reached Object.prototype');
+
+    await page.click('#btnDeskClear');
+    await wait(2400);
+    const after = await page.evaluate(() => ({
+      desk: window.__tcsim.state.meta.manual || {},
+      flags: window.__tcsim.state.boilers.map((b) => ({ rh: b.rhGasDamperManual, sp: b.msSprayManual, lvl: b.levelCtrlAuto })),
+    }));
+    s.assert(Object.keys(after.desk).length === 0, `desk not empty after ALL AUTO: ${JSON.stringify(after.desk)}`);
+    const stuck = after.flags.filter((f) => f.rh || f.sp || f.lvl !== true);
+    s.assert(stuck.length === 0, `boiler flags stuck after ALL AUTO: ${JSON.stringify(after.flags)}`);
+    return { detail: '7 hostile values and 2 unknown keys — value stayed in range, no NaN, no pollution; ALL AUTO returned every item and cleared every MANUAL flag' };
+  }, { severity: 'high' });
+
+  await s.test('the desk survives a reload — it is plant state, not browser state', async () => {
+    await page.evaluate(() => window.__tcsim.cmd('manual', { key: 'pa:1', on: true, value: 44 }));
+    await wait(1800);
+    await page.reload({ waitUntil: 'load' });
+    await wait(6000);
+    const r = await page.evaluate(() => ({
+      entry: (window.__tcsim.state.meta.manual || {})['pa:1'] || null,
+      pa: window.__tcsim.state.boilers[1].paSpeed,
+    }));
+    s.assert(r.entry && r.entry.on === true && Math.abs(r.entry.value - 44) < 0.5, `desk lost on reload: ${JSON.stringify(r.entry)}`);
+    s.assert(Math.abs((r.pa || 0) - 44) < 0.5, `PA fan not held at 44 % after reload (${r.pa})`);
+    await page.evaluate(() => window.__tcsim.cmd('manualClear'));
+    await wait(900);
+    return { detail: 'boiler B PA fan still MANUAL at 44 % after a full page reload, desk then cleared' };
+  }, { severity: 'medium' });
+
+  /* ---- light theme ------------------------------------------------------ */
+  await s.test('both themes stay legible and the choice survives a reload', async () => {
+    // A light theme is only a feature if it can actually be read. Measured
+    // rather than eyeballed: WCAG relative luminance on twelve text surfaces,
+    // compositing translucent backgrounds against whatever is behind them.
+    const measure = () => page.evaluate(() => {
+      const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+      const L = (c) => { const m = c.match(/[\d.]+/g).slice(0, 3).map(Number); return 0.2126 * lin(m[0]) + 0.7152 * lin(m[1]) + 0.0722 * lin(m[2]); };
+      const A = (c) => { const m = c.match(/[\d.]+/g); return { r: +m[0], g: +m[1], b: +m[2], a: m[3] === undefined ? 1 : +m[3] }; };
+      const over = (fg, bg) => { const f = A(fg), b = A(bg); return `rgb(${Math.round(f.r * f.a + b.r * (1 - f.a))},${Math.round(f.g * f.a + b.g * (1 - f.a))},${Math.round(f.b * f.a + b.b * (1 - f.a))})`; };
+      const bgOf = (el) => { let n = el; while (n) { const c = getComputedStyle(n).backgroundColor; if (c && !/rgba\(0, 0, 0, 0\)|transparent/.test(c)) return c; n = n.parentElement; } return 'rgb(255,255,255)'; };
+      const sel = ['.rdg', '.tabs button', '.mangrp > h4', '.manrow .nm', '.manrow .val', '.manrow .val i',
+        '.manrow button.btn', '.auxgrp h4', '.auxrow .nm', '.secthd', '.auxhint', '.mandesk-note'];
+      return sel.map((q) => {
+        const el = document.querySelector(q);
+        if (!el) return { q, ratio: null };
+        const cs = getComputedStyle(el);
+        const bg = over(bgOf(el), 'rgb(255,255,255)');
+        const fg = over(cs.color, bg);
+        const a = L(fg), b = L(bg); const hi = Math.max(a, b), lo = Math.min(a, b);
+        return { q, ratio: (hi + 0.05) / (lo + 0.05), px: parseFloat(cs.fontSize) };
+      });
+    });
+    const theme = () => page.evaluate(() => document.documentElement.getAttribute('data-theme') || '');
+    const first = await theme();
+    await page.click('#btnTheme');
+    await wait(1100);
+    const second = await theme();
+    const rA = await measure();
+    await page.reload({ waitUntil: 'load' });
+    await wait(5500);
+    const persisted = await theme();
+    await page.click('#btnTheme');
+    await wait(1100);
+    const rB = await measure();
+    s.assert(second && second !== first, `the toggle did not change the theme ("${first}" → "${second}")`);
+    s.assert(persisted === second, `the choice did not survive a reload: "${second}" → "${persisted}"`);
+    const measured = [...rA, ...rB].filter((x) => x.ratio !== null);
+    s.assert(measured.length >= 18, `only ${measured.length} of 24 surfaces could be measured`);
+    const bad = measured.filter((x) => x.ratio < 4.5);
+    s.assert(bad.length === 0, `${bad.length} text surface(s) below 4.5:1 — ${bad.slice(0, 4).map((x) => `${x.q} ${x.ratio.toFixed(2)}:1`).join(', ')}`);
+    const worstA = Math.min(...rA.filter((x) => x.ratio !== null).map((x) => x.ratio));
+    const worstB = Math.min(...rB.filter((x) => x.ratio !== null).map((x) => x.ratio));
+    return { detail: `12 text surfaces per theme, worst ${worstA.toFixed(2)}:1 and ${worstB.toFixed(2)}:1 against a 4.5:1 target; the choice survives a reload` };
   }, { severity: 'high' });
 
   await s.test('no JavaScript errors accumulated over the whole session', () => {

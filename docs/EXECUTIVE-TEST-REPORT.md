@@ -1,8 +1,8 @@
 # Executive test report — turbine-coal-simulator 1.0.0
 
 **Verdict: PASS WITH MINOR FINDINGS** — 2 low/medium findings raised.
-97/104 checks passed · 5 observations · 13 defects found and fixed.
-Generated Wed, 30 Sep 2026 04:20:09 GMT from `docs/test-results.json`.
+103/111 checks passed · 6 observations · 18 defects found and fixed.
+Generated Thu, 01 Oct 2026 04:12:32 GMT from `docs/test-results.json`.
 
 ## 1. Summary
 
@@ -18,10 +18,10 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 
 | Suite | Passed | Failed | Notes | Time |
 |---|---:|---:|---:|---:|
-| Plant model & physics | 21 | 2 | 2 | 1397.5 s |
-| API, protocol & resilience | 15 | 0 | 0 | 4.2 s |
-| Usability & front end | 34 | 0 | 1 | 483.9 s |
-| Security & vulnerabilities | 27 | 0 | 2 | 2.6 s |
+| Plant model & physics | 21 | 2 | 2 | 2184.5 s |
+| API, protocol & resilience | 15 | 0 | 0 | 4.3 s |
+| Usability & front end | 40 | 0 | 2 | 1240.7 s |
+| Security & vulnerabilities | 27 | 0 | 2 | 2.8 s |
 
 ### Plant model & physics
 
@@ -50,67 +50,74 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | PASS | info | load ramps up to 12 MW/min (1.8 %/min) complete without a trip | 6 MW/min: ok · 12 MW/min: ok |
 | PASS | info | sampled faults produce the annunciation an operator would expect | 6/6 sampled faults annunciate correctly |
 | FAIL | info | simulation is deterministic for identical inputs | two identical runs diverged: "[\"ONLINE\",\"258.464538\",\"12.633808\",\"3000.4332\"]" != "[\"ONLINE\",\"239.530202\",\"12.636477\",\"3000.4332\"]" |
-| FAIL | info | engine keeps up with real time at 600× acceleration | 289.7 ms per 200 ms tick — cannot keep up in real time |
-| PASS | info | snapshot is small enough for a 5 Hz WebSocket feed | 34.1 KB full / 10.8 KB light at 5 Hz |
+| FAIL | info | engine keeps up with real time at 600× acceleration | 467.6 ms per 200 ms tick — cannot keep up in real time |
+| PASS | info | snapshot is small enough for a 5 Hz WebSocket feed | 34.6 KB full / 11.3 KB light at 5 Hz |
 
 ### API, protocol & resilience
 
 | Result | Sev | Check | Evidence |
 |---|---|---|---|
 | PASS | high | POST /api/command with unknown or malformed input does not crash the server | 6 malformed payloads handled, no prototype pollution |
-| PASS | info | GET / serves the HMI | 24 KB HTML |
+| PASS | info | GET / serves the HMI | 32 KB HTML |
 | PASS | info | static assets are served (/js/app.js, /vendor/three/three.module.js) | all modules + vendored Three.js served locally (works offline) |
 | PASS | info | unknown paths return a 404 and do not leak files | 404 handler responds with plain text |
-| PASS | info | GET /api/snapshot returns a complete plant snapshot | 13 top-level groups in 6 ms |
+| PASS | info | GET /api/snapshot returns a complete plant snapshot | 13 top-level groups in 7 ms |
 | PASS | info | GET /api/design, /api/history and /api/faults respond correctly | 34 faults with cause, symptoms and operator actions |
 | PASS | info | POST /api/command applies operator commands | loadSetpoint and rampRate applied |
 | PASS | info | fault injection and clearing work through the API | inject → listed → clear round trip |
 | PASS | info | injecting an unknown fault id is rejected cleanly | rejected with ok:false, server still healthy |
 | PASS | info | clearing with "*" clears every active fault | all faults cleared |
 | PASS | info | oversized request bodies are rejected (1 MB JSON limit) | oversized body → HTTP 413, server healthy |
-| PASS | info | WebSocket feed delivers welcome + snapshots and answers pings | 13 snapshots in 2.5 s, ping/pong ok, version 1.0.0 |
+| PASS | info | WebSocket feed delivers welcome + snapshots and answers pings | 12 snapshots in 2.5 s, ping/pong ok, version 1.0.0 |
 | PASS | info | WebSocket accepts commands and rejects garbage without dying | malformed frames ignored, server still broadcasting |
-| PASS | info | 50 rapid commands are all handled without error | 50 commands in 109 ms |
-| PASS | info | snapshot payload fits a 5 Hz feed | 29.7 KB per snapshot |
+| PASS | info | 50 rapid commands are all handled without error | 50 commands in 143 ms |
+| PASS | info | snapshot payload fits a 5 Hz feed | 30.3 KB per snapshot |
 
 ### Usability & front end
 
 | Result | Sev | Check | Evidence |
 |---|---|---|---|
 | PASS | critical | the HMI loads and connects to the live feed | websocket live, mode SHUTDOWN COLD, 0.0 MW |
-| PASS | critical | the tutorial runs the whole cold start-up to a loaded unit | completed in 383 simulated minutes at 365 MW (77 s wall) |
+| PASS | critical | the tutorial runs the whole cold start-up to a loaded unit | completed in 406 simulated minutes at 425 MW (127 s wall) |
 | PASS | high | no JavaScript errors on load or during operation | clean console |
 | PASS | high | the 3D station renders (canvas is not blank) | 411 meshes in the scene graph, 35978 triangles per frame |
 | PASS | high | the guided start-up tutorial offers itself on first visit | first step "1 · Before you start" with 2 controls |
 | PASS | high | the tutorial advances only when the plant condition is met | step 3 → 4, plant mode PRESTART |
-| PASS | high | the autopilot takes the unit the rest of the way to load hands-off | 0 → 490 MW, state ON_LOAD — on load — holding 490 MW (3 advisory alarms) |
+| PASS | high | the autopilot takes the unit the rest of the way to load hands-off | 0 → 499 MW, state ON_LOAD — on load — holding 499 MW (3 advisory alarms) |
 | PASS | high | the autopilot button label never disagrees with the autopilot state | label tracked the state across 12 snapshots |
 | PASS | high | operator controls stay clickable with the tutorial panel open | 800x600 ok · 1024x768 ok · 1280x800 ok · 1600x900 ok |
-| PASS | high | the plant sound is actually synthesised (measured on the master bus) | master bus rms 0.1194, peak 0.312 (no clipping) |
+| PASS | high | the plant sound is actually synthesised (measured on the master bus) | master bus rms 0.1219, peak 0.306 (no clipping) |
 | PASS | high | faults can be injected and cleared from the Faults tab | filter → inject → symptoms shown → clear (TUBE_LEAK) |
 | PASS | high | the operator UI gives no hint that the admin console exists | no mention, no link; robots.txt disallows the path |
 | PASS | high | the admin console is styled, not stripped by its own CSP | 40 CSS rules applied, ui-monospace, background rgb(7, 11, 18) |
 | PASS | high | the autopilot refuses to engage on a latched trip and says why | refused — "autopilot cannot engage — MFT latched (Operator — manual master fuel trip)" |
 | PASS | high | a drive can be started and stopped from the Controls tab | Conveyor, CW pump 1 and Boiler A ID fan each started and stopped against the model |
 | PASS | high | a console that fails to boot says so instead of going silently dead | blocked /js/app.js → the watchdog tells the operator to hard-reload |
+| PASS | high | the manual desk exposes every drive and control loop the sequencer writes | 14 items across Boiler A and Boiler B — 8 drives and 6 control loops, each with a value control and an AUTO/MANUAL switch, nothing truncated |
+| PASS | high | a value taken to MANUAL is not overwritten by the automatic control | over ~100 simulated minutes of an active start-up: A held at 70.0 % while the sequencer moved B 77.8 → 73.8 % |
+| PASS | high | a loop takes a setpoint in AUTO, and hands the valve over and back | main steam setpoint 545 °C applied with the valve still automatic; drum level taken MANUAL at 480 t/h and released back to AUTO |
+| PASS | high | the desk refuses hostile values and ALL AUTO releases everything | 7 hostile values and 2 unknown keys — value stayed in range, no NaN, no pollution; ALL AUTO returned every item and cleared every MANUAL flag |
+| PASS | high | both themes stay legible and the choice survives a reload | 12 text surfaces per theme, worst 5.48:1 and 5.21:1 against a 4.5:1 target; the choice survives a reload |
 | PASS | high | no JavaScript errors accumulated over the whole session | 0 console errors, 0 page errors |
 | PASS | medium | the build stamp sits in the top-right corner of the window, on screen | top-right of the window at 1024–1920 px, 14 px from the edge, never covered |
 | PASS | medium | layout is usable at 1366×768 and 1920×1080 (no overflow, no overlap) | 1366×768 ok · 1920×1080 ok |
-| PASS | medium | the RESET PLANT button returns the simulator to a cold unit | 295 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 0 min, 0 events |
-| PASS | medium | arming RESET PLANT neither shifts the bar nor stays silent | idle 186px → armed 186px at the same spot; "⟲ CONFIRM RESET (9s)" → "⟲ RESET PLANT" |
+| NOTE | medium | Start-up needed more than one attempt | The unit tripped during this test's set-up and had to be restarted 1 time(s) before it reached load. Hands-off start-ups trip on drum level often enough to be worth knowing about; see the physics suite note on load ramps. |
+| PASS | medium | the RESET PLANT button returns the simulator to a cold unit | 298 MW / 0 events → SHUTDOWN_COLD, 0 MW, clock 0 min, 0 events |
+| PASS | medium | arming RESET PLANT neither shifts the bar nor stays silent | idle 186px → armed 186px at the same spot; "⟲ CONFIRM RESET (8s)" → "⟲ RESET PLANT" |
 | PASS | medium | the plant controls panel exposes every drive the model simulates | 33 drives in 5 groups — Boiler A, Boiler B, Turbine auxiliaries, Feed & condensate, Coal, ash & FGD |
-| PASS | low | the bottom bar shows the build version and source commit | v1.0.0 · c58ff44 |
+| PASS | medium | the desk survives a reload — it is plant state, not browser state | boiler B PA fan still MANUAL at 44 % after a full page reload, desk then cleared |
+| PASS | low | the bottom bar shows the build version and source commit | v1.0.0 · e3b3467 |
 | NOTE | low | Tutorial and sound state are stored per browser | The tutorial auto-offers itself once per browser (localStorage "tcsim.tutorialSeen") and the sound preference persists per browser. Clear site data — or use the 🎓 TUTORIAL button — to run the guided start-up again on the same machine. |
 | PASS | info | tutorial step 1 waits for the operator (does not auto-advance) | still on step 1 after 3 s of live snapshots |
 | PASS | info | the tutorial highlights the control each step is about | "2 · Set time acceleration" highlights #speed and shows a live readout |
 | PASS | info | tutorial assist buttons drive the plant, not just the text | time acceleration now 60× (selector 60×) |
 | PASS | info | the completion summary reports the achieved operating point | 7-row operating summary shown |
 | PASS | info | sound is off by default and starts on the operator's click | AudioContext running, graph built |
-| PASS | info | sound tracks the plant: each bus is driven by its own variable | furnace 0.52 · fans 0.127 · mills 0.156 · steam 0.119 · vent 0.024 · leak 0 · turbine 0.195 · generator 0.09 · pumps 0.053 · water 0.075 · coal 0.05 |
-| PASS | info | volume control works and the setting survives a reload | master gain 0.25, setting restored after reload (25 %, 🔊 SOUND ON) |
+| PASS | info | sound tracks the plant: each bus is driven by its own variable | furnace 0.52 · fans 0.128 · mills 0.158 · steam 0.117 · vent 0.001 · leak 0 · turbine 0.2 · generator 0.091 · pumps 0.053 · water 0.075 · coal 0.05 |
+| PASS | info | volume control works and the setting survives a reload | master gain 0.253, setting restored after reload (25 %, 🔊 SOUND ON) |
 | PASS | info | all nine side tabs open and render content | 9 tabs: alarms, plant, boiler, turb, bop, aux, faults, proc, events |
 | PASS | info | every 3D view preset works without errors | 9 camera presets: overview, boilers, furnace, turbine, turbineDeck, tower, coal, fgd, topDown |
-| PASS | info | primary controls are reachable and labelled | 12 controls in the bottom bar, all labelled and ≥40 px wide |
+| PASS | info | primary controls are reachable and labelled | 13 controls in the bottom bar, all labelled and ≥40 px wide |
 | PASS | info | the hidden console still loads and offers one-time registration | reachable at /admin, registrationOpen=true |
 
 ### Security & vulnerabilities
@@ -164,6 +171,11 @@ API and a session cookie without the `Secure` flag — are deployment choices co
 | 11 | Condensate / hotwell | The condensate extraction pumps followed the condenser inflow with a lag but had no level control, so every load change left water behind and the hotwell slowly filled until the HIGH level alarm latched and never cleared. | Permanent false "hotwell level HIGH" alarm; the level drifted to 1 737 mm against a 1 500 mm alarm. | Condensate flow is trimmed by hotwell level, holding the normal band at ~900 mm. |
 | 12 | Cooling tower | Tower outlet temperature was computed from a fixed 44 °C basin, so the condenser vacuum could not reach its design value (12.6 kPa instead of 9.5 kPa) and part-load heat rate was 5 % high. | Back-pressure and heat rate were wrong at every load. | Range and approach follow the load with the ambient wet bulb: 32.6 °C basin at full load, 8.6–9.5 kPa vacuum. |
 | 13 | Cold reheat pressure | Cold reheat pressure was modelled as 0.877 of the HP inlet instead of the correct Stodola expansion relation (3.90 MPa at design flow). | IP/LP swallowing capacity was wrong; peak load stalled at 597 MW. | Expansion-line cushion correction applied. |
+| 14 | Manual desk | The control-loop entries carry two numbers with different ranges — a setpoint in °C and a valve position in % — but the desk clamped both against the setpoint range. An operator asking for a 20 % reheater damper got clamp(20, 470, 570) = 470, which put the damper on its 100 % stop. | Every manual position on a control loop wound up at the top of its travel, so the reheat temperature and main steam temperature desks did the opposite of what the operator asked and could not be used at all. | Each field is clamped on receipt against its own bounds (manualMin/manualMax for the position, min/max for the setpoint), and the shared clamp that assumed a single range was removed. |
+| 15 | Manual desk | ALL AUTO cleared the desk map outright. The boiler MANUAL flags (rhGasDamperManual, msSprayManual) and the drum level loop are only released when applyManual() runs with the entry still present, so clearing the map first left them set with nothing left to turn them off. | After pressing ALL AUTO the desk looked empty but the reheater damper and stage-2 spray stayed under operator control for the rest of the run — the button appeared to work and did not. | ALL AUTO releases every item (runs applyManual() with each entry switched off) and only then forgets them. |
+| 16 | Manual desk | The snapshot exposed idSpeed (the sequencer command plus the draft-controller trim) but not idSpeedBase, which is the value the desk writes. The console showed only the combined figure. | A manual ID fan looked like it was ignoring the operator, because the trim kept moving on top of whatever was asked for. | idSpeedBase and the attemperator position (spray2Pct) are now in the snapshot, so the panel shows the command and the trim separately. |
+| 17 | Manual desk | Each desk row was a single flex line: a fixed 96 px label, the slider, the value and the AUTO/MANUAL button. In the ~300 px controls pane the longest label ("Reheat steam temp") was ellipsised and the slider was left 60 px wide, and seven of the fourteen rows overflowed. | Operators could not read which loop they were about to take manual, and a 60 px slider is too small to set a value with a mouse. | Rows are a two-line grid — label and mode above, slider and numbers below. Nothing is clipped and the slider is about 230 px. |
+| 18 | Test harness | Two usability checks inherited their precondition instead of establishing it. The sound test measured the turbine audio bus after the autopilot test, which can leave the unit tripped; the RESET PLANT test gave up after one start-up trip because a latched MFT makes every further "start" a no-op. | Both reported failures that had nothing to do with what they were testing — a turbine bus reading zero on a stopped machine is correct — and the RESET PLANT check could pass without ever exercising the button. | The sound test brings the machine up to speed itself if it is stopped; the RESET PLANT set-up clears a latched trip and retries, and records how often that was needed as an observation. |
 
 ## 4. Known limitations
 
@@ -191,6 +203,6 @@ npm test                       # all four suites, then regenerates this report
 node tools/run-tests.js --quick # skip the slow physics suite
 node tools/test-sim.js          # physics only  (~12 min)
 node tools/test-api.js          # API only      (~5 s)
-node tools/test-ui.js           # usability     (~4 min, needs the server on :8080)
+node tools/test-ui.js           # usability     (~30 min, starts its own server on :8097)
 node tools/test-security.js     # security      (~3 s)
 ```

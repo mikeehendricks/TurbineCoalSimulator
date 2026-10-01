@@ -57,7 +57,10 @@ function runOne(suite, group = '') {
     // against a live browser on a small box. It ran 28 of its 34 tests before
     // a 25 min budget killed it, so the budget is now 45 min — a truncated
     // suite is worse than a slow one, because it looks like a pass.
-    const budgetMs = suite.key === 'sim' ? 1800000 : (suite.key === 'ui' ? 2700000 : 600000);
+    // The usability suite gained six checks for the manual desk and the light
+    // theme, two of which run the unit up from cold, so 45 min is no longer
+    // enough headroom on a small box.
+    const budgetMs = suite.key === 'sim' ? 1800000 : (suite.key === 'ui' ? 3600000 : 600000);
     const kill = setTimeout(() => child.kill('SIGKILL'), budgetMs);
     child.on('close', (code) => {
       clearTimeout(kill);

@@ -104,6 +104,41 @@ const FIXED = [
     fix: 'Expansion-line cushion correction applied.',
     found: 'Load-ramp harness (tools/loadtest.js)',
   },
+  {
+    area: 'Manual desk',
+    defect: 'The control-loop entries carry two numbers with different ranges — a setpoint in °C and a valve position in % — but the desk clamped both against the setpoint range. An operator asking for a 20 % reheater damper got clamp(20, 470, 570) = 470, which put the damper on its 100 % stop.',
+    effect: 'Every manual position on a control loop wound up at the top of its travel, so the reheat temperature and main steam temperature desks did the opposite of what the operator asked and could not be used at all.',
+    fix: 'Each field is clamped on receipt against its own bounds (manualMin/manualMax for the position, min/max for the setpoint), and the shared clamp that assumed a single range was removed.',
+    found: 'Manual-desk integration probe — reheat damper read 100.0 % with the desk showing MANUAL at 20 %',
+  },
+  {
+    area: 'Manual desk',
+    defect: 'ALL AUTO cleared the desk map outright. The boiler MANUAL flags (rhGasDamperManual, msSprayManual) and the drum level loop are only released when applyManual() runs with the entry still present, so clearing the map first left them set with nothing left to turn them off.',
+    effect: 'After pressing ALL AUTO the desk looked empty but the reheater damper and stage-2 spray stayed under operator control for the rest of the run — the button appeared to work and did not.',
+    fix: 'ALL AUTO releases every item (runs applyManual() with each entry switched off) and only then forgets them.',
+    found: 'Manual-desk integration probe — rhGasDamperManual still true after manualClear',
+  },
+  {
+    area: 'Manual desk',
+    defect: 'The snapshot exposed idSpeed (the sequencer command plus the draft-controller trim) but not idSpeedBase, which is the value the desk writes. The console showed only the combined figure.',
+    effect: 'A manual ID fan looked like it was ignoring the operator, because the trim kept moving on top of whatever was asked for.',
+    fix: 'idSpeedBase and the attemperator position (spray2Pct) are now in the snapshot, so the panel shows the command and the trim separately.',
+    found: 'Manual-desk integration probe — ID fan row read 0 % on a running boiler',
+  },
+  {
+    area: 'Manual desk',
+    defect: 'Each desk row was a single flex line: a fixed 96 px label, the slider, the value and the AUTO/MANUAL button. In the ~300 px controls pane the longest label ("Reheat steam temp") was ellipsised and the slider was left 60 px wide, and seven of the fourteen rows overflowed.',
+    effect: 'Operators could not read which loop they were about to take manual, and a 60 px slider is too small to set a value with a mouse.',
+    fix: 'Rows are a two-line grid — label and mode above, slider and numbers below. Nothing is clipped and the slider is about 230 px.',
+    found: 'Layout probe on the new panel — 7 rows overflowing, 4 labels truncated',
+  },
+  {
+    area: 'Test harness',
+    defect: 'Two usability checks inherited their precondition instead of establishing it. The sound test measured the turbine audio bus after the autopilot test, which can leave the unit tripped; the RESET PLANT test gave up after one start-up trip because a latched MFT makes every further "start" a no-op.',
+    effect: 'Both reported failures that had nothing to do with what they were testing — a turbine bus reading zero on a stopped machine is correct — and the RESET PLANT check could pass without ever exercising the button.',
+    fix: 'The sound test brings the machine up to speed itself if it is stopped; the RESET PLANT set-up clears a latched trip and retries, and records how often that was needed as an observation.',
+    found: 'Full programme run — two usability checks failed on a tripped unit left by the autopilot scenario',
+  },
 ];
 
 const RECOMMENDATIONS = [
@@ -242,11 +277,14 @@ ${sc.total} individual checks were executed in ${(merged.suites.reduce((a, s) =>
 <p>The build is <b>${sc.verdict.toLowerCase()}</b>: ${sc.headline} The engine completes a full cold start-up
 (light-off → purge → pressure raising → turbine roll → synchronisation → loading to full output), holds
 steady state, takes every one of the 34 fault scenarios, and shuts the unit down to a boxed-up cold state
-without a spurious trip. Steam properties were verified against IAPWS references, the heat-rate and
-boiler-efficiency figures are in the right band at rated load, and the model is deterministic.</p>
-<p>Thirteen defects were found and fixed during the programme (section 5), the most serious being three
+without a spurious trip. Steam properties were verified against IAPWS references and the heat-rate and
+boiler-efficiency figures are in the right band at rated load.</p>
+<p>${FIXED.length} defects were found and fixed across the programme (section 5). The earliest were three
 control-loop bugs that prevented a cold start from completing, one that made a normal shutdown latch a
-false turbine trip, and one that made the whole model irreproducible.</p>
+false turbine trip, and one that made the whole model irreproducible. This round added the operator
+manual desk and the light theme, and the new checks written for them found five more — the most serious
+being a range check that clamped an operator's valve position to the loop's temperature range, which
+sent the reheater damper to its 100&nbsp;% stop the moment the operator asked for 20&nbsp;%.</p>
 <p><b>One high-severity issue remains open.</b> The boiler-follow and drum-level loops are only marginally
 damped, so the plant is sensitive to last-bit numerical differences: before the steam-property cache was
 fixed, the same scenario was observed to finish anywhere between 0 MW and full load. A single run is now
@@ -260,7 +298,7 @@ choices, not code defects, and are covered by the recommendations in section 7.<
 <tr><th>Area</th><th>What was exercised</th><th>How</th></tr>
 <tr><td>Physics &amp; plant behaviour</td><td>Steam tables, isentropic expansion, cold start-up timing, drum thermal stress, steady state at full load, boiler efficiency and losses, twin-boiler balance, heat rate, load-ramp envelope, normal shutdown, MFT and turbine-trip protection, 34-fault catalogue, model determinism, numerical stability, real-time performance</td><td>Headless model runs at 600× time acceleration (tools/test-sim.js)</td></tr>
 <tr><td>API, protocol &amp; resilience</td><td>REST endpoints, static asset serving, 404 handling, malformed and hostile payloads (prototype pollution, oversized bodies), fault inject/clear round trips, WebSocket stream rate and ping/pong, command bursts, snapshot size</td><td>Live server instance on an isolated data directory (tools/test-api.js)</td></tr>
-<tr><td>Usability &amp; front end</td><td>First-load experience, guided tutorial end to end (13 steps to a loaded unit), synthesised plant sound measured on the audio bus, all eight tabs, nine 3D camera presets, layout at 1366×768 and 1920×1080, control sizing, fault panel, absence of any admin discovery path</td><td>Headless Chrome via Puppeteer (tools/test-ui.js)</td></tr>
+<tr><td>Usability &amp; front end</td><td>First-load experience, guided tutorial end to end (13 steps to a loaded unit), synthesised plant sound measured on the audio bus, all nine tabs, nine 3D camera presets, layout at 1366×768 and 1920×1080, control sizing, fault panel, absence of any admin discovery path, the <b>operator manual desk</b> (14 drives and control loops: AUTO/MANUAL switching, bumpless transfer, per-boiler isolation, setpoints, hostile values, ALL AUTO, survival across a reload), and the <b>light/dark theme</b> (WCAG contrast measured on twelve text surfaces in each theme, choice persisted across a reload)</td><td>Headless Chrome via Puppeteer (tools/test-ui.js)</td></tr>
 <tr><td>Security &amp; vulnerability</td><td>One-time admin registration, password storage, session handling, authorisation on every privileged endpoint, forged cookies, path traversal, shell injection, reflected XSS, secret scanning in git history, npm audit, sudoers scope</td><td>Live server instance with an isolated data directory (tools/test-security.js)</td></tr>
 </table>
 <p class="detail">Test harness: <code>tools/lib/suite.js</code>. Run everything with <code>npm test</code>
@@ -305,7 +343,7 @@ means a single process cannot be used to compare two plants sample by sample.</l
 node tools/run-tests.js --quick # skip the slow physics suite
 node tools/test-sim.js          # physics only  (~12 min)
 node tools/test-api.js          # API only      (~5 s)
-node tools/test-ui.js           # usability     (~4 min, needs the server on :8080)
+node tools/test-ui.js           # usability     (~30 min, starts its own server on :8097)
 node tools/test-security.js     # security      (~3 s)
 node tools/loadtest.js --target=660 --ramp=4    # load-ramp harness</code></pre>
 <p class="detail">Environment: Ubuntu Linux, Node.js ${process.versions.node}, Express ${expressVer}, ws ${wsVer}; headless Chrome for the usability suite.</p>
@@ -375,7 +413,7 @@ npm test                       # all four suites, then regenerates this report
 node tools/run-tests.js --quick # skip the slow physics suite
 node tools/test-sim.js          # physics only  (~12 min)
 node tools/test-api.js          # API only      (~5 s)
-node tools/test-ui.js           # usability     (~4 min, needs the server on :8080)
+node tools/test-ui.js           # usability     (~30 min, starts its own server on :8097)
 node tools/test-security.js     # security      (~3 s)
 \`\`\`
 `;
